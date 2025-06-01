@@ -189,14 +189,16 @@ public class ShortsCreatorTelegramBot extends
     sendTelegramMessage(chatId,
         "영상 생성 요청(Task ID: `" + taskId + "`)을 받았습니다. InVideo AI 작업을 시작합니다. 브라우저가 실행될 수 있습니다... 🎬", true);
 
-    // 비동기적으로 InVideo AI 작업 실행
+    // 🔧 수정: Boolean → String 타입으로 변경
     inVideoAutomationService.createVideoInInVideoAI(invideoGmailUsername, invideoGmailPassword,
             taskContent.getInvideoPrompt())
-        .thenAcceptAsync(success -> {
-          if (success) {
-            sendTelegramMessage(chatId, "InVideo AI 영상 생성 작업이 시작되었거나 성공적으로 초기 단계가 완료되었습니다. (Task ID: `" + taskId
-                + "`) 실제 영상 생성에는 시간이 걸릴 수 있습니다.", true);
-            pendingVideoTasks.remove(taskId); // 작업 시작 후 (또는 성공 후) 임시 저장소에서 제거
+        .thenAcceptAsync(resultMessage -> {
+          // 🎉 새로운 기능: 선택된 옵션 정보를 포함한 상세 메시지 전송
+          if (resultMessage.startsWith("✅")) {
+            // 🔧 수정: escapeMarkdownV2로 메시지 이스케이프 처리
+            String finalMessage = resultMessage + "\n\n\\(Task ID: `" + taskId + "`\\)";
+            sendTelegramMessage(chatId, escapeMarkdownV2(finalMessage), true);
+            pendingVideoTasks.remove(taskId); // 작업 시작 후 임시 저장소에서 제거
 
             // --- 모든 주요 작업(영상 생성 및 업로드)이 성공했을 때만 히스토리 기록 ---
             // 예시: boolean allStepsSuccess = ... (InVideo 생성 완료 확인 및 YouTube 업로드 결과)
@@ -206,12 +208,13 @@ public class ShortsCreatorTelegramBot extends
             // }
 
           } else {
-            sendTelegramMessage(chatId, "InVideo AI 영상 생성 작업 시작에 실패했습니다. (Task ID: `" + taskId + "`) 로그를 확인해주세요.",
-                true);
+            // 🔧 수정: 오류 메시지도 이스케이프 처리
+            String finalMessage = resultMessage + "\n\n\\(Task ID: `" + taskId + "`\\)";
+            sendTelegramMessage(chatId, escapeMarkdownV2(finalMessage), true);
           }
         }).exceptionally(ex -> {
           log.error("InVideo AI 영상 생성 작업 중 예외 발생 (Chat ID: {}, Task ID: {}): {}", chatId, taskId, ex.getMessage(), ex);
-          sendTelegramMessage(chatId, "InVideo AI 영상 생성 작업 중 오류가 발생했습니다. (Task ID: `" + taskId + "`)", true);
+          sendTelegramMessage(chatId, "InVideo AI 영상 생성 작업 중 오류가 발생했습니다\\. \\(Task ID: `" + taskId + "`\\)", true);
           return null;
         });
   }
@@ -220,17 +223,17 @@ public class ShortsCreatorTelegramBot extends
     if (text == null) {
       return "";
     }
-    // MarkdownV2에서 이스케이프해야 하는 문자들 (Telegram Bot API 문서 참조)
-    // 순서가 중요할 수 있으므로, 백슬래시를 먼저 처리하지 않도록 주의
-    // (하지만 각 문자를 독립적으로 replace하는 경우 순서는 덜 중요)
-    // . 과 ! 는 문맥에 따라 다를 수 있으나, 안전하게 모두 이스케이프
+
+    // MarkdownV2에서 이스케이프해야 하는 모든 특수 문자들
+    // 참고: https://core.telegram.org/bots/api#markdownv2-style
     return text
+        .replace("\\", "\\\\")  // 백슬래시를 먼저 처리 (다른 이스케이프와 충돌 방지)
         .replace("_", "\\_")
         .replace("*", "\\*")
         .replace("[", "\\[")
         .replace("]", "\\]")
-        .replace("(", "\\(")
-        .replace(")", "\\)")
+        .replace("(", "\\(")    // 🔧 괄호 이스케이프 추가
+        .replace(")", "\\)")    // 🔧 괄호 이스케이프 추가
         .replace("~", "\\~")
         .replace("`", "\\`")
         .replace(">", "\\>")
@@ -305,19 +308,47 @@ public class ShortsCreatorTelegramBot extends
     return "불명확함";
   }
 
-  // 스크립트 포맷팅 헬퍼 (줄바꿈을 실제 줄바꿈으로)
-  private String formatScript(String script) {
-    if (script == null) {
-      return "N/A";
-    }
-    // OpenAI 응답의 \n 을 실제 줄바꿈으로 변경할 필요는 없음. Telegram이 알아서 처리.
-    // 다만, 너무 길면 잘릴 수 있으니 요약 또는 부분 표시도 고려.
-    return script;
-  }
+  /**
+   * 안전한 메시지 전송 - MarkdownV2 파싱 오류 시 일반 텍스트로 폴백
+   */
+  private void sendTelegramMessageSafe(long chatId, String text, boolean enableMarkdown) {
+    SendMessage message = new SendMessage();
+    message.setChatId(String.valueOf(chatId));
 
-  // Telegram 메시지 전송 헬퍼 메소드
-  private void sendTelegramMessage(long chatId,
-      String text) {
-    sendTelegramMessage(chatId, text, false);
+    if (enableMarkdown) {
+      // MarkdownV2 시도
+      message.setText(text);
+      message.setParseMode(ParseMode.MARKDOWNV2);
+    } else {
+      // 일반 텍스트
+      message.setText(text);
+    }
+
+    try {
+      execute(message);
+      log.info("응답 메시지 전송 완료 (Chat ID: {})", chatId);
+    } catch (TelegramApiException e) {
+      log.error("Telegram 메시지 전송 중 오류 발생 (Chat ID: {}): {}", chatId, e.getMessage(), e);
+
+      // MarkdownV2 파싱 오류 시 일반 텍스트로 재시도
+      if (enableMarkdown && e.getMessage() != null && e.getMessage().contains("can't parse entities")) {
+        log.warn("MarkdownV2 파싱 오류로 인해 일반 텍스트로 재전송 시도 (Chat ID: {})", chatId);
+
+        SendMessage fallbackMessage = new SendMessage();
+        fallbackMessage.setChatId(String.valueOf(chatId));
+        // 특수문자를 제거하고 간단한 텍스트로 변환
+        String cleanText = text
+            .replaceAll("\\\\[\\*_\\[\\]\\(\\)~`>#+=|{}.!-]", "") // 이스케이프된 특수문자 제거
+            .replaceAll("[\\*_\\[\\]\\(\\)~`>#+=|{}.!-]", "");    // 남은 특수문자 제거
+        fallbackMessage.setText("⚠️ 메시지 포맷팅 오류가 발생하여 단순 텍스트로 전송:\n\n" + cleanText);
+
+        try {
+          execute(fallbackMessage);
+          log.info("일반 텍스트 재전송 성공 (Chat ID: {})", chatId);
+        } catch (TelegramApiException exFallback) {
+          log.error("일반 텍스트 재전송도 실패 (Chat ID: {}): {}", chatId, exFallback.getMessage());
+        }
+      }
+    }
   }
 }

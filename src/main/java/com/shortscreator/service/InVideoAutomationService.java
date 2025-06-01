@@ -66,7 +66,8 @@ public class InVideoAutomationService {
   // --- InVideo AI 영상 생성 페이지 관련 설정 값들 (application.yml에 추가 필요) ---
   @Value("${invideo.editor.prompt_input_selector:textarea[placeholder*='your script or idea here']}") // 예시 Selector
   private String invideoPromptInputSelector;
-  @Value("${invideo.editor.generate_button_selector://button[contains(.//text(), 'Generate') and contains(.//text(), 'video')]}") // Generate와 video가 포함된 버튼
+  @Value("${invideo.editor.generate_button_selector://button[contains(.//text(), 'Generate') and contains(.//text(), 'video')]}")
+  // Generate와 video가 포함된 버튼
   private String invideoGenerateButtonSelector;
 
   @Value("${invideo.access_token_filepath:invideo_access_token.txt}")
@@ -107,7 +108,7 @@ public class InVideoAutomationService {
   }
 
   @Async("taskExecutor")
-  public CompletableFuture<Boolean> createVideoInInVideoAI(String gmailUsername, String gmailPassword,
+  public CompletableFuture<String> createVideoInInVideoAI(String gmailUsername, String gmailPassword,
       String invideoAiPromptForVideo) {
     WebDriver driver = null;
     log.info("InVideo AI 영상 생성 자동화 시작...");
@@ -128,7 +129,7 @@ public class InVideoAutomationService {
         boolean loggedInManually = loginToInVideo(driver, gmailUsername, gmailPassword);
         if (!loggedInManually) {
           log.error("InVideo AI 수동 로그인 실패. 영상 생성을 진행할 수 없습니다.");
-          return CompletableFuture.completedFuture(false);
+          return CompletableFuture.completedFuture("❌ 로그인 실패");
         }
         log.info("InVideo AI 수동 로그인 성공.");
       } else {
@@ -233,6 +234,16 @@ public class InVideoAutomationService {
 
       // (Platform은 YouTube Shorts가 기본 선택되어 있을 것으로 가정하고 일단 생략)
 
+      // --- 선택된 옵션들 확인 및 Telegram으로 전송 ---
+      String selectedOptionsMessage = "";
+      try {
+        selectedOptionsMessage = getSelectedOptions(driver);
+        log.info("선택된 옵션들: {}", selectedOptionsMessage);
+      } catch (Exception e) {
+        log.warn("선택된 옵션 확인 중 오류 발생 (무시하고 진행): {}", e.getMessage());
+        selectedOptionsMessage = "⚠️ 옵션 확인 중 오류가 발생했습니다.";
+      }
+
       // --- 최종 "Continue" 버튼 클릭 ---
       log.info("설정 페이지의 'Continue' 버튼({}) 클릭 시도...", settingsPageContinueButtonXPath);
       WebElement continueButton = settingsPageWait.until(
@@ -244,14 +255,14 @@ public class InVideoAutomationService {
 
       log.info("InVideo AI 영상 생성이 다음 단계로 진행되었습니다. (실제 완료까지는 시간이 소요될 수 있음)");
 
-      return CompletableFuture.completedFuture(true);
+      return CompletableFuture.completedFuture("✅ 영상 생성 시작 완료\\n\\n" + selectedOptionsMessage);
 
     } catch (Exception e) {
       log.error("InVideo AI 영상 생성 자동화 중 오류 발생: {}", e.getMessage(), e);
       if (driver != null) {
         log.error("오류 발생 시점 URL: {}", getCurrentUrlSafe(driver));
       }
-      return CompletableFuture.completedFuture(false);
+      return CompletableFuture.completedFuture("❌ 오류 발생: " + e.getMessage());
     } finally {
       if (driver != null) {
         try {
@@ -373,9 +384,10 @@ public class InVideoAutomationService {
 
   /**
    * v4.0 워크스페이스 URL에서 워크스페이스 ID를 추출하여 v3.0 Copilot 페이지로 리다이렉트
-   * @param driver WebDriver 인스턴스
+   *
+   * @param driver     WebDriver 인스턴스
    * @param currentUrl 현재 v4.0 워크스페이스 URL
-   * @param wait WebDriverWait 인스턴스
+   * @param wait       WebDriverWait 인스턴스
    * @return 리다이렉트 성공 여부
    */
   private boolean redirectToV30Copilot(WebDriver driver, String currentUrl, WebDriverWait wait) {
@@ -407,8 +419,9 @@ public class InVideoAutomationService {
 
   /**
    * 사용 가능한 Audience 옵션 중 랜덤으로 하나를 선택
+   *
    * @param driver WebDriver 인스턴스
-   * @param wait WebDriverWait 인스턴스
+   * @param wait   WebDriverWait 인스턴스
    * @return 선택된 WebElement 또는 null
    */
   private WebElement selectRandomAudienceOption(WebDriver driver, WebDriverWait wait) {
@@ -443,8 +456,9 @@ public class InVideoAutomationService {
 
   /**
    * 사용 가능한 Visual Style 옵션 중 랜덤으로 하나를 선택
+   *
    * @param driver WebDriver 인스턴스
-   * @param wait WebDriverWait 인스턴스
+   * @param wait   WebDriverWait 인스턴스
    * @return 선택된 WebElement 또는 null
    */
   private WebElement selectRandomVisualStyleOption(WebDriver driver, WebDriverWait wait) {
@@ -477,7 +491,159 @@ public class InVideoAutomationService {
     }
   }
 
-  // 로그인 로직 (기존 InVideoLoginService 내용을 가져오거나 수정하여 사용)
+  /**
+   * 현재 선택된 모든 옵션들을 확인하고 문자열로 반환
+   *
+   * @param driver WebDriver 인스턴스
+   * @return 선택된 옵션들의 요약 문자열 (MarkdownV2 이스케이프 처리됨)
+   */
+  private String getSelectedOptions(WebDriver driver) {
+    StringBuilder selectedOptions = new StringBuilder();
+    selectedOptions.append("🎬 InVideo AI 설정 선택 완료\\n\\n");
+
+    try {
+      // Visual Style 확인
+      String visualStyle = getSelectedOption(driver, "Visual style");
+      selectedOptions.append("🎨 Visual Style: ").append(escapeForMarkdown(visualStyle)).append("\\n");
+
+      // Audience 확인
+      String audience = getSelectedOption(driver, "Audiences");
+      selectedOptions.append("👥 Audience: ").append(escapeForMarkdown(audience)).append("\\n");
+
+      // Platform 확인
+      String platform = getSelectedOption(driver, "Platform");
+      selectedOptions.append("📱 Platform: ").append(escapeForMarkdown(platform)).append("\\n");
+
+    } catch (Exception e) {
+      log.error("선택된 옵션 확인 중 오류: {}", e.getMessage(), e);
+      selectedOptions.append("⚠️ 일부 옵션 확인 중 오류가 발생했습니다\\.");
+    }
+
+    return selectedOptions.toString();
+  }
+
+  /**
+   * 디버깅용: 모든 섹션의 버튼 상태를 로그로 출력
+   */
+  private void logAllButtonStates(WebDriver driver) {
+    try {
+      String[] sections = {"Visual style", "Audiences", "Platform"};
+
+      for (String section : sections) {
+        log.info("=== {} 섹션 버튼 상태 ===", section);
+
+        List<WebElement> allButtons = driver.findElements(
+            By.xpath(String.format("//div[contains(text(), '%s')]/..//button[@value]", section)));
+
+        for (int i = 0; i < allButtons.size(); i++) {
+          WebElement button = allButtons.get(i);
+          String value = button.getAttribute("value");
+          String classAttr = button.getAttribute("class");
+          String text = button.getText();
+
+          boolean isSelected = classAttr != null &&
+              (classAttr.contains("selected-true") || classAttr.contains("hWMCax-selected-true"));
+
+          log.info("  버튼 {}: value='{}', text='{}', selected={}, class='{}'",
+              i + 1, value, text, isSelected, classAttr);
+        }
+      }
+    } catch (Exception e) {
+      log.warn("버튼 상태 로깅 중 오류: {}", e.getMessage());
+    }
+  }
+
+  private String escapeForMarkdown(String text) {
+    if (text == null) {
+      return "";
+    }
+    return text
+        .replace("_", "\\_")
+        .replace("*", "\\*")
+        .replace("[", "\\[")
+        .replace("]", "\\]")
+        .replace("(", "\\(")
+        .replace(")", "\\)")
+        .replace(".", "\\.")
+        .replace("!", "\\!")
+        .replace("-", "\\-");
+  }
+
+  /**
+   * 특정 섹션에서 선택된 옵션을 찾아서 반환
+   *
+   * @param driver      WebDriver 인스턴스
+   * @param sectionName 섹션 이름 (예: "Visual style", "Audiences", "Platform")
+   * @return 선택된 옵션의 텍스트
+   */
+  private String getSelectedOption(WebDriver driver, String sectionName) {
+    try {
+      // 여러 패턴으로 선택된 버튼 찾기
+      String[] selectedPatterns = {
+          // 패턴 1: selected-true 클래스
+          String.format("//div[contains(text(), '%s')]/..//button[contains(@class, 'selected-true')]", sectionName),
+          // 패턴 2: hWMCax-selected-true 클래스 (실제 HTML 구조 기반)
+          String.format("//div[contains(text(), '%s')]/..//button[contains(@class, 'hWMCax-selected-true')]",
+              sectionName),
+          // 패턴 3: 첫 번째 버튼 (기본 선택된 경우가 많음)
+          String.format("//div[contains(text(), '%s')]/..//button[1]", sectionName),
+          // 패턴 4: value 속성이 있는 모든 버튼 중 첫 번째
+          String.format("//div[contains(text(), '%s')]/..//button[@value][1]", sectionName)
+      };
+
+      for (String pattern : selectedPatterns) {
+        try {
+          List<WebElement> buttons = driver.findElements(By.xpath(pattern));
+          if (!buttons.isEmpty()) {
+            WebElement selectedButton = buttons.get(0);
+
+            // 버튼이 실제로 선택된 상태인지 확인
+            String classAttribute = selectedButton.getAttribute("class");
+            boolean isSelected = classAttribute != null &&
+                (classAttribute.contains("selected-true") ||
+                    classAttribute.contains("hWMCax-selected-true"));
+
+            String value = selectedButton.getAttribute("value");
+            String text = (value != null && !value.isEmpty()) ? value : selectedButton.getText();
+
+            if (isSelected) {
+              log.debug("'{}' 섹션에서 명시적으로 선택된 옵션 발견: {}", sectionName, text);
+              return text + " ✅";
+            } else if (pattern.contains("[1]")) {
+              // 첫 번째 버튼인 경우 (기본 선택)
+              log.debug("'{}' 섹션에서 기본 선택된 옵션으로 추정: {}", sectionName, text);
+              return text + " (기본선택)";
+            }
+          }
+        } catch (Exception e) {
+          log.debug("패턴 '{}' 시도 중 오류: {}", pattern, e.getMessage());
+          continue;
+        }
+      }
+
+      // 모든 패턴이 실패한 경우, 해당 섹션의 모든 버튼을 찾아서 첫 번째 반환
+      try {
+        List<WebElement> allButtons = driver.findElements(
+            By.xpath(String.format("//div[contains(text(), '%s')]/..//button[@value]", sectionName)));
+
+        if (!allButtons.isEmpty()) {
+          WebElement firstButton = allButtons.get(0);
+          String value = firstButton.getAttribute("value");
+          String text = (value != null && !value.isEmpty()) ? value : firstButton.getText();
+          log.debug("'{}' 섹션에서 첫 번째 사용 가능한 옵션 반환: {}", sectionName, text);
+          return text + " (감지됨)";
+        }
+      } catch (Exception e) {
+        log.warn("'{}' 섹션의 모든 버튼 탐색 중 오류: {}", sectionName, e.getMessage());
+      }
+
+      return "선택 감지 실패";
+    } catch (Exception e) {
+      log.warn("'{}' 섹션의 선택된 옵션 확인 중 오류: {}", sectionName, e.getMessage());
+      return "확인 실패";
+    }
+  }
+
   private boolean loginToInVideo(WebDriver driver, String gmailUsername, String gmailPassword) {
     String originalWindowHandle = driver.getWindowHandle();
     String googleLoginWindowHandle = null;
