@@ -56,6 +56,15 @@ invideo:
     visual_style_inspirational_button_xpath: "//button[@value='Inspirational']"
     continue_button_xpath: "//button[.//div[contains(text(),'Continue')]]"
 
+    # 영상 생성 완료 후 다운로드 관련 Selector
+    download_button_xpath: "//button[contains(.//text(), 'Download')]"
+    download_video_option_xpath: "//div[@role='menuitem'][.//div[contains(text(), 'Download video')]]"
+    download_dialog_xpath: "//div[@role='dialog'][.//div[contains(text(), 'Download Settings')]]"
+    download_continue_button_xpath: "//div[@role='dialog']//button[.//div[contains(text(), 'Continue')]]"
+
+    # 영상 생성 완료 대기 시간 (초) - 10분
+    video_generation_timeout_seconds: 600
+
   # InVideo AI 로그인에 사용할 Gmail 계정 정보
   # 환경 변수 사용을 강력히 권장합니다. (INVIDEO_GMAIL_USERNAME, INVIDEO_GMAIL_PASSWORD)
   account:

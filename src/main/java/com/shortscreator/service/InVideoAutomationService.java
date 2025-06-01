@@ -76,6 +76,18 @@ public class InVideoAutomationService {
   @Value("${invideo.editor.settings_page_load_timeout_seconds:120}")
   private int settingsPageLoadTimeoutSeconds;
 
+  // 다운로드 관련 설정 추가
+  @Value("${invideo.editor.download_button_xpath}")
+  private String downloadButtonXPath;
+  @Value("${invideo.editor.download_video_option_xpath}")
+  private String downloadVideoOptionXPath;
+  @Value("${invideo.editor.download_dialog_xpath}")
+  private String downloadDialogXPath;
+  @Value("${invideo.editor.download_continue_button_xpath}")
+  private String downloadContinueButtonXPath;
+  @Value("${invideo.editor.video_generation_timeout_seconds:600}")
+  private int videoGenerationTimeoutSeconds;
+
   private static final String V3_COPILOT_URL_FORMAT = "https://ai.invideo.io/workspace/%s/v30-copilot";
   private static final Pattern WORKSPACE_ID_PATTERN = Pattern.compile(
       "https://ai\\.invideo\\.io/workspace/([a-f0-9\\-]+)/.*");
@@ -253,7 +265,15 @@ public class InVideoAutomationService {
       continueButton.click();
       log.info("설정 페이지 'Continue' 버튼 클릭 완료. 실제 영상 생성 프로세스가 시작될 것으로 예상됩니다.");
 
-      log.info("InVideo AI 영상 생성이 다음 단계로 진행되었습니다. (실제 완료까지는 시간이 소요될 수 있음)");
+      // --- 영상 생성 완료 대기 및 다운로드 시작 ---
+      boolean downloadStarted = waitForVideoCompletionAndStartDownload(driver, settingsPageWait);
+      if (downloadStarted) {
+        selectedOptionsMessage += "\n\n🎬 영상 생성 완료 및 다운로드 시작됨";
+        log.info("InVideo AI 영상 생성 및 다운로드 프로세스가 완료되었습니다.");
+      } else {
+        selectedOptionsMessage += "\n\n⚠️ 영상 생성은 진행되었으나 다운로드 시작 확인 실패";
+        log.warn("영상 생성 후 다운로드 시작을 확인하지 못했습니다.");
+      }
 
       return CompletableFuture.completedFuture("✅ 영상 생성 시작 완료\\n\\n" + selectedOptionsMessage);
 
@@ -523,8 +543,126 @@ public class InVideoAutomationService {
   }
 
   /**
-   * 디버깅용: 모든 섹션의 버튼 상태를 로그로 출력
+   * 영상 생성 완료를 대기하고 다운로드를 시작하는 메서드
+   *
+   * @param driver WebDriver 인스턴스
+   * @param wait   WebDriverWait 인스턴스
+   * @return 다운로드 시작 성공 여부
    */
+  private boolean waitForVideoCompletionAndStartDownload(WebDriver driver, WebDriverWait wait) {
+    try {
+      log.info("영상 생성 완료 대기 중... (최대 {}분)", videoGenerationTimeoutSeconds / 60);
+
+      // 영상 생성 완료 표시를 기다림 (Download 버튼이 활성화될 때까지)
+      WebDriverWait longWait = new WebDriverWait(driver, Duration.ofSeconds(videoGenerationTimeoutSeconds));
+
+      // Download 버튼이 나타날 때까지 대기
+      WebElement downloadButton = longWait.until(
+          ExpectedConditions.elementToBeClickable(By.xpath(downloadButtonXPath)));
+
+      log.info("Download 버튼이 활성화되었습니다. 영상 생성이 완료된 것으로 보입니다.");
+      Thread.sleep(2000); // 안정화 대기
+
+      // Download 버튼 클릭
+      JavascriptExecutor js = (JavascriptExecutor) driver;
+      js.executeScript("arguments[0].scrollIntoView(true);", downloadButton);
+      Thread.sleep(500);
+      downloadButton.click();
+      log.info("Download 버튼 클릭 완료.");
+
+      // 드롭다운 메뉴에서 "Download video" 옵션 클릭 대기
+      WebElement downloadVideoOption = wait.until(
+          ExpectedConditions.elementToBeClickable(By.xpath(downloadVideoOptionXPath)));
+
+      downloadVideoOption.click();
+      log.info("'Download video' 옵션 클릭 완료.");
+      Thread.sleep(1000);
+
+      // Download Settings 다이얼로그가 나타날 때까지 대기
+      WebElement downloadDialog = wait.until(
+          ExpectedConditions.visibilityOfElementLocated(By.xpath(downloadDialogXPath)));
+
+      log.info("Download Settings 다이얼로그가 나타났습니다.");
+
+      // 다이얼로그에서 선택된 설정들 확인 및 로깅
+      String downloadSettings = getDownloadSettings(driver);
+      log.info("다운로드 설정: {}", downloadSettings);
+
+      // Continue 버튼 클릭
+      WebElement continueButton = wait.until(
+          ExpectedConditions.elementToBeClickable(By.xpath(downloadContinueButtonXPath)));
+
+      js.executeScript("arguments[0].scrollIntoView(true);", continueButton);
+      Thread.sleep(500);
+      continueButton.click();
+      log.info("Download Settings의 Continue 버튼 클릭 완료. 다운로드가 시작될 것입니다.");
+
+      return true;
+
+    } catch (Exception e) {
+      log.error("영상 생성 완료 대기 또는 다운로드 시작 중 오류 발생: {}", e.getMessage(), e);
+      return false;
+    }
+  }
+
+  /**
+   * Download Settings 다이얼로그에서 현재 선택된 설정들을 확인
+   *
+   * @param driver WebDriver 인스턴스
+   * @return 다운로드 설정 요약 문자열
+   */
+  private String getDownloadSettings(WebDriver driver) {
+    StringBuilder settings = new StringBuilder();
+
+    try {
+      // Type of watermarks 확인
+      String watermarks = getSelectedDownloadOption(driver, "Type of watermarks");
+      settings.append("워터마크: ").append(watermarks).append(", ");
+
+      // invideo AI branding 확인
+      String branding = getSelectedDownloadOption(driver, "invideo AI branding");
+      settings.append("브랜딩: ").append(branding).append(", ");
+
+      // Download resolution 확인
+      String resolution = getSelectedDownloadOption(driver, "Download resolution");
+      settings.append("해상도: ").append(resolution);
+
+    } catch (Exception e) {
+      log.warn("다운로드 설정 확인 중 오류: {}", e.getMessage());
+      return "설정 확인 실패";
+    }
+
+    return settings.toString();
+  }
+
+  /**
+   * Download Settings 다이얼로그에서 특정 섹션의 선택된 옵션을 확인
+   */
+  private String getSelectedDownloadOption(WebDriver driver, String sectionName) {
+    try {
+      List<WebElement> selectedButtons = driver.findElements(
+          By.xpath(String.format("//div[contains(text(), '%s')]/..//button[contains(@class, 'hWMCax-selected-true')]",
+              sectionName)));
+
+      if (!selectedButtons.isEmpty()) {
+        WebElement selectedButton = selectedButtons.get(0);
+        String value = selectedButton.getAttribute("value");
+        if (value != null && !value.isEmpty()) {
+          return value;
+        } else {
+          // value가 없으면 텍스트에서 추출
+          WebElement textDiv = selectedButton.findElement(By.xpath(".//div[contains(@class, 'c-cURRIC')]"));
+          return textDiv.getText();
+        }
+      }
+
+      return "선택되지 않음";
+    } catch (Exception e) {
+      log.warn("'{}' 섹션의 선택된 다운로드 옵션 확인 중 오류: {}", sectionName, e.getMessage());
+      return "확인 실패";
+    }
+  }
+
   private void logAllButtonStates(WebDriver driver) {
     try {
       String[] sections = {"Visual style", "Audiences", "Platform"};
