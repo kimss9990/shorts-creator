@@ -65,7 +65,7 @@ public class InVideoAutomationService {
   // --- InVideo AI 영상 생성 페이지 관련 설정 값들 (application.yml에 추가 필요) ---
   @Value("${invideo.editor.prompt_input_selector:textarea[placeholder*='your script or idea here']}") // 예시 Selector
   private String invideoPromptInputSelector;
-  @Value("${invideo.editor.generate_button_selector:button[data-testid='generate-video-button']}") // 예시 Selector
+  @Value("${invideo.editor.generate_button_selector://button[contains(.//text(), 'Generate') and contains(.//text(), 'video')]}") // Generate와 video가 포함된 버튼
   private String invideoGenerateButtonSelector;
 
   @Value("${invideo.access_token_filepath:invideo_access_token.txt}")

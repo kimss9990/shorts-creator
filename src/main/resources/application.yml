@@ -49,7 +49,8 @@ invideo:
   editor: # InVideo AI 에디터(영상 생성 페이지) 관련 Selector
     settings_page_load_timeout_seconds: 300
     prompt_input_selector: "//textarea[@name='brief']"
-    generate_button_selector: "//button[.//div[text()='Generate my video']]"
+    # 🔧 개선된 Generate 버튼 셀렉터 - "Generate"와 "video"가 포함된 버튼을 찾음
+    generate_button_selector: "//button[contains(.//text(), 'Generate') and contains(.//text(), 'video')]"
     confirmation_page_indicator_xpath: "//button[.//div[contains(text(),'Continue')]]"
     audience_married_adults_button_xpath: "//button[@value='Married adults']"
     look_inspirational_button_xpath: "//button[@value='Inspirational']"
