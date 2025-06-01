@@ -9,6 +9,7 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -57,8 +58,8 @@ public class InVideoAutomationService {
   private String invideoConfirmationPageIndicatorXPath;
   @Value("${invideo.editor.audience_married_adults_button_xpath}")
   private String audienceMarriedAdultsButtonXPath;
-  @Value("${invideo.editor.look_inspirational_button_xpath}")
-  private String lookInspirationalButtonXPath;
+  @Value("${invideo.editor.visual_style_inspirational_button_xpath}")
+  private String visualStyleInspirationalButtonXPath;
   @Value("${invideo.editor.continue_button_xpath}")
   private String settingsPageContinueButtonXPath;
 
@@ -172,41 +173,65 @@ public class InVideoAutomationService {
       log.info("영상 생성 설정 페이지로 성공적으로 이동 확인됨. 현재 URL: {}", getCurrentUrlSafe(driver));
       Thread.sleep(1000); // 페이지 안정화 대기
 
-      // --- Audience 설정: "Married adults" 클릭 ---
+      // --- Audience 설정: "Married adults" 클릭 (없으면 랜덤 선택) ---
       try {
         log.info("'Audiences: Married adults' 버튼({}) 클릭 시도...", audienceMarriedAdultsButtonXPath);
-        WebElement audienceButton = settingsPageWait.until(
-            ExpectedConditions.elementToBeClickable(By.xpath(audienceMarriedAdultsButtonXPath)));
-        if (!audienceButton.getAttribute("class").contains("selected-true")) {
-          js.executeScript("arguments[0].scrollIntoView(true);", audienceButton);
-          Thread.sleep(200);
-          audienceButton.click();
-          log.info("'Married adults' 버튼 클릭 완료.");
-          Thread.sleep(500);
-        } else {
-          log.info("'Married adults'는 이미 선택되어 있습니다.");
+        WebElement audienceButton = null;
+
+        try {
+          audienceButton = settingsPageWait.until(
+              ExpectedConditions.elementToBeClickable(By.xpath(audienceMarriedAdultsButtonXPath)));
+          log.info("'Married adults' 버튼을 찾았습니다.");
+        } catch (Exception e) {
+          log.info("'Married adults' 버튼을 찾을 수 없습니다. 사용 가능한 Audience 옵션 중 랜덤 선택을 시도합니다.");
+          audienceButton = selectRandomAudienceOption(driver, settingsPageWait);
+        }
+
+        if (audienceButton != null) {
+          if (!audienceButton.getAttribute("class").contains("selected-true")) {
+            js.executeScript("arguments[0].scrollIntoView(true);", audienceButton);
+            Thread.sleep(200);
+            audienceButton.click();
+            log.info("Audience 버튼 클릭 완료.");
+            Thread.sleep(500);
+          } else {
+            log.info("선택된 Audience는 이미 선택되어 있습니다.");
+          }
         }
       } catch (Exception e) {
-        log.warn("'Audiences: Married adults' 버튼 클릭 중 오류 발생 (무시하고 진행 가능성 있음): {}", e.getMessage());
+        log.warn("Audience 설정 중 오류 발생 (무시하고 진행 가능성 있음): {}", e.getMessage());
       }
 
-      // --- Look and feel 설정: "Inspirational" 클릭 ---
+      // --- Visual style 설정: "Inspirational" 클릭 (없으면 랜덤 선택) ---
       try {
-        log.info("'Look and feel: Inspirational' 버튼({}) 클릭 시도...", lookInspirationalButtonXPath);
-        WebElement lookButton = settingsPageWait.until(
-            ExpectedConditions.elementToBeClickable(By.xpath(lookInspirationalButtonXPath)));
-        if (!lookButton.getAttribute("class").contains("selected-true")) {
-          js.executeScript("arguments[0].scrollIntoView(true);", lookButton);
-          Thread.sleep(200);
-          lookButton.click();
-          log.info("'Inspirational' 버튼 클릭 완료.");
-          Thread.sleep(500);
-        } else {
-          log.info("'Inspirational'은 이미 선택되어 있습니다.");
+        log.info("'Visual style: Inspirational' 버튼({}) 클릭 시도...", visualStyleInspirationalButtonXPath);
+        WebElement visualStyleButton = null;
+
+        try {
+          visualStyleButton = settingsPageWait.until(
+              ExpectedConditions.elementToBeClickable(By.xpath(visualStyleInspirationalButtonXPath)));
+          log.info("'Inspirational' 버튼을 찾았습니다.");
+        } catch (Exception e) {
+          log.info("'Inspirational' 버튼을 찾을 수 없습니다. 사용 가능한 Visual style 옵션 중 랜덤 선택을 시도합니다.");
+          visualStyleButton = selectRandomVisualStyleOption(driver, settingsPageWait);
+        }
+
+        if (visualStyleButton != null) {
+          if (!visualStyleButton.getAttribute("class").contains("selected-true")) {
+            js.executeScript("arguments[0].scrollIntoView(true);", visualStyleButton);
+            Thread.sleep(200);
+            visualStyleButton.click();
+            log.info("Visual style 버튼 클릭 완료.");
+            Thread.sleep(500);
+          } else {
+            log.info("선택된 Visual style은 이미 선택되어 있습니다.");
+          }
         }
       } catch (Exception e) {
-        log.warn("'Look and feel: Inspirational' 버튼 클릭 중 오류 발생 (무시하고 진행 가능성 있음): {}", e.getMessage());
+        log.warn("Visual style 설정 중 오류 발생 (무시하고 진행 가능성 있음): {}", e.getMessage());
       }
+
+      // (Platform은 YouTube Shorts가 기본 선택되어 있을 것으로 가정하고 일단 생략)
 
       // --- 최종 "Continue" 버튼 클릭 ---
       log.info("설정 페이지의 'Continue' 버튼({}) 클릭 시도...", settingsPageContinueButtonXPath);
@@ -377,6 +402,78 @@ public class InVideoAutomationService {
     } catch (Exception e) {
       log.error("v3.0 페이지로의 리다이렉트 중 오류 발생: {}", e.getMessage(), e);
       return false;
+    }
+  }
+
+  /**
+   * 사용 가능한 Audience 옵션 중 랜덤으로 하나를 선택
+   * @param driver WebDriver 인스턴스
+   * @param wait WebDriverWait 인스턴스
+   * @return 선택된 WebElement 또는 null
+   */
+  private WebElement selectRandomAudienceOption(WebDriver driver, WebDriverWait wait) {
+    try {
+      // Audience 섹션의 모든 버튼을 찾음 (일반적인 패턴으로 찾기)
+      List<WebElement> audienceButtons = driver.findElements(
+          By.xpath("//div[contains(text(), 'Audience') or contains(text(), 'audience')]/..//button[@value]"));
+
+      if (audienceButtons.isEmpty()) {
+        // 다른 패턴으로 시도
+        audienceButtons = driver.findElements(
+            By.xpath("//button[contains(@class, 'audience') or contains(@data-testid, 'audience')]"));
+      }
+
+      if (!audienceButtons.isEmpty()) {
+        WebElement randomButton = audienceButtons.get((int) (Math.random() * audienceButtons.size()));
+        String buttonText = randomButton.getAttribute("value");
+        if (buttonText == null || buttonText.isEmpty()) {
+          buttonText = randomButton.getText();
+        }
+        log.info("랜덤으로 선택된 Audience: {}", buttonText);
+        return randomButton;
+      } else {
+        log.warn("사용 가능한 Audience 옵션을 찾을 수 없습니다.");
+        return null;
+      }
+    } catch (Exception e) {
+      log.error("랜덤 Audience 선택 중 오류 발생: {}", e.getMessage(), e);
+      return null;
+    }
+  }
+
+  /**
+   * 사용 가능한 Visual Style 옵션 중 랜덤으로 하나를 선택
+   * @param driver WebDriver 인스턴스
+   * @param wait WebDriverWait 인스턴스
+   * @return 선택된 WebElement 또는 null
+   */
+  private WebElement selectRandomVisualStyleOption(WebDriver driver, WebDriverWait wait) {
+    try {
+      // Visual Style 섹션의 모든 버튼을 찾음
+      List<WebElement> styleButtons = driver.findElements(
+          By.xpath("//div[contains(text(), 'Visual style') or contains(text(), 'Look and feel')]/..//button[@value]"));
+
+      if (styleButtons.isEmpty()) {
+        // 다른 패턴으로 시도
+        styleButtons = driver.findElements(
+            By.xpath("//button[contains(@class, 'style') or contains(@data-testid, 'style')]"));
+      }
+
+      if (!styleButtons.isEmpty()) {
+        WebElement randomButton = styleButtons.get((int) (Math.random() * styleButtons.size()));
+        String buttonText = randomButton.getAttribute("value");
+        if (buttonText == null || buttonText.isEmpty()) {
+          buttonText = randomButton.getText();
+        }
+        log.info("랜덤으로 선택된 Visual Style: {}", buttonText);
+        return randomButton;
+      } else {
+        log.warn("사용 가능한 Visual Style 옵션을 찾을 수 없습니다.");
+        return null;
+      }
+    } catch (Exception e) {
+      log.error("랜덤 Visual Style 선택 중 오류 발생: {}", e.getMessage(), e);
+      return null;
     }
   }
 

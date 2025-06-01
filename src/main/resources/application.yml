@@ -53,7 +53,7 @@ invideo:
     generate_button_selector: "//button[contains(.//text(), 'Generate') and contains(.//text(), 'video')]"
     confirmation_page_indicator_xpath: "//button[.//div[contains(text(),'Continue')]]"
     audience_married_adults_button_xpath: "//button[@value='Married adults']"
-    look_inspirational_button_xpath: "//button[@value='Inspirational']"
+    visual_style_inspirational_button_xpath: "//button[@value='Inspirational']"
     continue_button_xpath: "//button[.//div[contains(text(),'Continue')]]"
 
   # InVideo AI 로그인에 사용할 Gmail 계정 정보
