@@ -1,0 +1,92 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: shorts-creator
+
+# OpenAI API Configuration
+openai:
+  api:
+    key: ${OPENAI_API_KEY:YOUR_OPENAI_API_KEY} # 환경 변수 OPENAI_API_KEY 또는 여기에 실제 키 입력 (주의)
+    model: gpt-4.1-mini # 또는 사용하려는 다른 OpenAI 모델 (예: gpt-3.5-turbo)
+  master_prompt:
+    filepath: classpath:prompts/master_prompt.txt
+  recent_tips_filepath: recent_tip_titles.json
+
+# YouTube API Configuration
+youtube:
+  api:
+    key: ${YOUTUBE_API_KEY:YOUR_YOUTUBE_API_KEY} # 환경 변수 YOUTUBE_API_KEY 또는 여기에 실제 키 입력 (주의)
+
+# InVideo AI Login Automation Configuration
+invideo:
+  access_token_filepath: invideo_access_token.txt
+  login:
+    url: https://invideo.io/login # InVideo 로그인 페이지 또는 Google 로그인 시작 URL
+
+    # InVideo 페이지 내의 "Join with Google" 버튼 Selector (XPath 권장)
+    google_signin_button_xpath: "//button[.//p[text()='Join with Google']]"
+
+    # Gmail 로그인 페이지의 CSS Selector들 (Google UI 변경 시 수정 필요할 수 있음)
+    gmail:
+      username:
+        selector: "input[type='email']" # Gmail 이메일 입력 필드
+        next:
+          selector: "#identifierNext button" # Gmail 이메일 입력 후 '다음' 버튼
+      password:
+        selector: "input[type='password']" # Gmail 비밀번호 입력 필드
+        next:
+          selector: "#passwordNext button" # Gmail 비밀번호 입력 후 '다음' 버튼
+      # Google 2단계 인증(MFA) 방법 선택 페이지의 "휴대전화나 태블릿에서 예를 탭합니다." 옵션 버튼 XPath
+      mfa_select_prompt_method_xpath: "//div[@data-challengetype='39'][.//div[contains(text(), '휴대전화나 태블릿에서')]]"
+    success:
+      # 로그인 성공 후 최종적으로 이동하는 InVideo 워크스페이스 URL의 시작 부분
+      url_starts_with: "https://ai.invideo.io/workspace/"
+    mfa:
+      timeout:
+        seconds: 120 # MFA 승인 및 페이지 리디렉션 대기 시간 (초)
+  editor: # InVideo AI 에디터(영상 생성 페이지) 관련 Selector
+    settings_page_load_timeout_seconds: 300
+    prompt_input_selector: "//textarea[@name='brief']"
+    generate_button_selector: "//button[.//div[text()='Generate my video']]"
+    confirmation_page_indicator_xpath: "//button[.//div[contains(text(),'Continue')]]"
+    audience_married_adults_button_xpath: "//button[@value='Married adults']"
+    look_inspirational_button_xpath: "//button[@value='Inspirational']"
+    continue_button_xpath: "//button[.//div[contains(text(),'Continue')]]"
+
+  # InVideo AI 로그인에 사용할 Gmail 계정 정보
+  # 환경 변수 사용을 강력히 권장합니다. (INVIDEO_GMAIL_USERNAME, INVIDEO_GMAIL_PASSWORD)
+  account:
+    username: ${INVIDEO_GMAIL_USERNAME:YOUR_GMAIL_USERNAME@example.com} # 여기에 Gmail 아이디 또는 환경변수 사용
+    password: ${INVIDEO_GMAIL_PASSWORD:YOUR_GMAIL_PASSWORD}             # 여기에 Gmail 비밀번호 또는 환경변수 사용
+
+  # InVideo 대시보드(워크스페이스) 페이지 로드 완료 확인용 요소 Selector
+  # 로그인 후 InVideo 페이지에서 안정적으로 나타나는 요소를 지정해야 합니다. (예: 헤더의 사용자 프로필 이미지)
+  dashboard:
+    loaded_indicator:
+      selector: "//textarea[@name='brief']" # XPath 예시
+
+# Telegram Bot Configuration
+telegram:
+  bot:
+    # BotFather로부터 발급받은 토큰을 입력하세요.
+    # 실제 운영 시에는 환경 변수 (예: ${TELEGRAM_BOT_TOKEN}) 사용을 강력히 권장합니다.
+    token: ${TELEGRAM_BOT_TOKEN:YOUR_TELEGRAM_BOT_TOKEN}
+    # 봇의 사용자 이름 (예: MyShortsCreatorBot)
+    username: ${TELEGRAM_BOT_USERNAME:YOUR_TELEGRAM_BOT_USERNAME}
+
+# Logging Configuration
+logging:
+  level:
+    root: INFO
+    com.shortscreator: DEBUG # 개발 중에는 DEBUG로 설정하여 상세 로그 확인, 운영 시 INFO로 변경
+    org.springframework.web: INFO
+    org.openqa.selenium: WARN # Selenium 관련 로그는 WARN 레벨 이상만 표시 (필요시 DEBUG로 변경)
+    io.github.bonigarcia.wdm: WARN # WebDriverManager 관련 로그
+
+# 만약 me.paulschwarz:spring-dotenv 의존성을 사용하고 .env 파일을 통해 환경변수를 관리한다면,
+# spring.profiles.active=dev 와 같이 프로파일을 지정하고
+# application-dev.yml 또는 .env.dev 파일에 개발용 설정을 둘 수 있습니다.
+# 위 설정은 기본 application.yml 이며, 모든 프로파일에 공통으로 적용되거나,
+# 특정 프로파일(예: dev)에서 오버라이드될 수 있습니다.

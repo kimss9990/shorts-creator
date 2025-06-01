@@ -1,0 +1,4 @@
+invideo_access_token.txt
+target/classes/application-dev.yml
+/target/
+/src/main/resources/application-dev.yml
