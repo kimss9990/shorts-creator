@@ -68,7 +68,8 @@ public class InVideoAutomationService {
   // --- InVideo AI 영상 생성 페이지 관련 설정 값들 (application.yml에 추가 필요) ---
   @Value("${invideo.editor.prompt_input_selector:textarea[placeholder*='your script or idea here']}") // 예시 Selector
   private String invideoPromptInputSelector;
-  @Value("${invideo.editor.generate_button_selector://button[contains(.//text(), 'Generate') and contains(.//text(), 'video')]}") // Generate와 video가 포함된 버튼
+  @Value("${invideo.editor.generate_button_selector://button[contains(.//text(), 'Generate') and contains(.//text(), 'video')]}")
+  // Generate와 video가 포함된 버튼
   private String invideoGenerateButtonSelector;
 
   @Value("${invideo.access_token_filepath:invideo_access_token.txt}")
@@ -280,13 +281,14 @@ public class InVideoAutomationService {
 
       // --- 영상 생성 완료 대기 및 다운로드 시작 ---
       String downloadedFilePath = waitForVideoCompletionAndDownload(driver, settingsPageWait);
+
       if (downloadedFilePath != null) {
         selectedOptionsMessage += "\n\n🎬 영상 다운로드 완료: " + escapeForMarkdown(new File(downloadedFilePath).getName());
 
-        // YouTube Shorts 업로드
+        // 🔧 수정된 부분: OAuth 2.0을 사용한 YouTube Shorts 업로드
         boolean uploadSuccess = uploadToYouTubeShorts(downloadedFilePath, videoTitle, videoDescription);
         if (uploadSuccess) {
-          selectedOptionsMessage += "\n📺 YouTube Shorts 업로드 완료";
+          selectedOptionsMessage += "\n📺 YouTube Shorts 업로드 완료 (OAuth 2.0)";
 
           // 로컬 파일 삭제
           boolean deleteSuccess = deleteLocalFile(downloadedFilePath);
@@ -296,7 +298,8 @@ public class InVideoAutomationService {
             selectedOptionsMessage += "\n⚠️ 로컬 파일 삭제 실패";
           }
         } else {
-          selectedOptionsMessage += "\n❌ YouTube 업로드 실패";
+          selectedOptionsMessage += "\n❌ YouTube 업로드 실패 (OAuth 2.0 인증 확인 필요)";
+          selectedOptionsMessage += "\n💡 해결방법: /api/youtube/oauth/status 에서 인증 상태 확인";
         }
 
         log.info("InVideo AI 영상 생성, 다운로드, 업로드 프로세스가 완료되었습니다.");
@@ -306,6 +309,7 @@ public class InVideoAutomationService {
       }
 
       return CompletableFuture.completedFuture("✅ 영상 생성 시작 완료\\n\\n" + selectedOptionsMessage);
+
 
     } catch (Exception e) {
       log.error("InVideo AI 영상 생성 자동화 중 오류 발생: {}", e.getMessage(), e);
@@ -434,9 +438,10 @@ public class InVideoAutomationService {
 
   /**
    * v4.0 워크스페이스 URL에서 워크스페이스 ID를 추출하여 v3.0 Copilot 페이지로 리다이렉트
-   * @param driver WebDriver 인스턴스
+   *
+   * @param driver     WebDriver 인스턴스
    * @param currentUrl 현재 v4.0 워크스페이스 URL
-   * @param wait WebDriverWait 인스턴스
+   * @param wait       WebDriverWait 인스턴스
    * @return 리다이렉트 성공 여부
    */
   private boolean redirectToV30Copilot(WebDriver driver, String currentUrl, WebDriverWait wait) {
@@ -468,8 +473,9 @@ public class InVideoAutomationService {
 
   /**
    * 사용 가능한 Audience 옵션 중 랜덤으로 하나를 선택
+   *
    * @param driver WebDriver 인스턴스
-   * @param wait WebDriverWait 인스턴스
+   * @param wait   WebDriverWait 인스턴스
    * @return 선택된 WebElement 또는 null
    */
   private WebElement selectRandomAudienceOption(WebDriver driver, WebDriverWait wait) {
@@ -504,8 +510,9 @@ public class InVideoAutomationService {
 
   /**
    * 사용 가능한 Visual Style 옵션 중 랜덤으로 하나를 선택
+   *
    * @param driver WebDriver 인스턴스
-   * @param wait WebDriverWait 인스턴스
+   * @param wait   WebDriverWait 인스턴스
    * @return 선택된 WebElement 또는 null
    */
   private WebElement selectRandomVisualStyleOption(WebDriver driver, WebDriverWait wait) {
@@ -540,6 +547,7 @@ public class InVideoAutomationService {
 
   /**
    * 현재 선택된 모든 옵션들을 확인하고 문자열로 반환
+   *
    * @param driver WebDriver 인스턴스
    * @return 선택된 옵션들의 요약 문자열 (MarkdownV2 이스케이프 처리됨)
    */
@@ -570,8 +578,9 @@ public class InVideoAutomationService {
 
   /**
    * 영상 생성 완료를 대기하고 다운로드를 완료하는 메서드
+   *
    * @param driver WebDriver 인스턴스
-   * @param wait WebDriverWait 인스턴스
+   * @param wait   WebDriverWait 인스턴스
    * @return 다운로드된 파일의 전체 경로, 실패 시 null
    */
   private String waitForVideoCompletionAndDownload(WebDriver driver, WebDriverWait wait) {
@@ -713,20 +722,26 @@ public class InVideoAutomationService {
    */
   private boolean uploadToYouTubeShorts(String videoFilePath, String title, String description) {
     try {
-      log.info("YouTube Shorts 업로드 시작: {}", videoFilePath);
+      log.info("YouTube Shorts OAuth 2.0 업로드 시작: {}", videoFilePath);
 
-      // YouTubeService를 통해 업로드 (이 메서드는 별도로 구현 필요)
+      // YouTubeService를 통해 업로드 (OAuth 2.0 인증 사용)
       boolean uploadResult = youTubeService.uploadShorts(videoFilePath, title, description);
 
       if (uploadResult) {
-        log.info("YouTube Shorts 업로드 성공");
+        log.info("✅ YouTube Shorts OAuth 2.0 업로드 성공");
         return true;
       } else {
-        log.error("YouTube Shorts 업로드 실패");
+        log.error("❌ YouTube Shorts OAuth 2.0 업로드 실패");
         return false;
       }
     } catch (Exception e) {
-      log.error("YouTube Shorts 업로드 중 오류 발생: {}", e.getMessage(), e);
+      log.error("YouTube Shorts OAuth 2.0 업로드 중 오류 발생: {}", e.getMessage(), e);
+
+      // OAuth 인증 관련 오류인 경우 사용자에게 인증 필요 알림
+      if (e.getMessage().contains("unauthorized") || e.getMessage().contains("invalid_token")) {
+        log.error("YouTube OAuth 2.0 인증이 필요합니다. /api/youtube/oauth/status 에서 인증 상태를 확인하세요.");
+      }
+
       return false;
     }
   }
@@ -758,6 +773,7 @@ public class InVideoAutomationService {
 
   /**
    * Download Settings 다이얼로그에서 현재 선택된 설정들을 확인
+   *
    * @param driver WebDriver 인스턴스
    * @return 다운로드 설정 요약 문자열
    */
@@ -791,7 +807,8 @@ public class InVideoAutomationService {
   private String getSelectedDownloadOption(WebDriver driver, String sectionName) {
     try {
       List<WebElement> selectedButtons = driver.findElements(
-          By.xpath(String.format("//div[contains(text(), '%s')]/..//button[contains(@class, 'hWMCax-selected-true')]", sectionName)));
+          By.xpath(String.format("//div[contains(text(), '%s')]/..//button[contains(@class, 'hWMCax-selected-true')]",
+              sectionName)));
 
       if (!selectedButtons.isEmpty()) {
         WebElement selectedButton = selectedButtons.get(0);
@@ -832,7 +849,7 @@ public class InVideoAutomationService {
               (classAttr.contains("selected-true") || classAttr.contains("hWMCax-selected-true"));
 
           log.info("  버튼 {}: value='{}', text='{}', selected={}, class='{}'",
-              i+1, value, text, isSelected, classAttr);
+              i + 1, value, text, isSelected, classAttr);
         }
       }
     } catch (Exception e) {
@@ -841,7 +858,9 @@ public class InVideoAutomationService {
   }
 
   private String escapeForMarkdown(String text) {
-    if (text == null) return "";
+    if (text == null) {
+      return "";
+    }
     return text
         .replace("_", "\\_")
         .replace("*", "\\*")
@@ -856,7 +875,8 @@ public class InVideoAutomationService {
 
   /**
    * 특정 섹션에서 선택된 옵션을 찾아서 반환
-   * @param driver WebDriver 인스턴스
+   *
+   * @param driver      WebDriver 인스턴스
    * @param sectionName 섹션 이름 (예: "Visual style", "Audiences", "Platform")
    * @return 선택된 옵션의 텍스트
    */
@@ -867,7 +887,8 @@ public class InVideoAutomationService {
           // 패턴 1: selected-true 클래스
           String.format("//div[contains(text(), '%s')]/..//button[contains(@class, 'selected-true')]", sectionName),
           // 패턴 2: hWMCax-selected-true 클래스 (실제 HTML 구조 기반)
-          String.format("//div[contains(text(), '%s')]/..//button[contains(@class, 'hWMCax-selected-true')]", sectionName),
+          String.format("//div[contains(text(), '%s')]/..//button[contains(@class, 'hWMCax-selected-true')]",
+              sectionName),
           // 패턴 3: 첫 번째 버튼 (기본 선택된 경우가 많음)
           String.format("//div[contains(text(), '%s')]/..//button[1]", sectionName),
           // 패턴 4: value 속성이 있는 모든 버튼 중 첫 번째
@@ -926,6 +947,7 @@ public class InVideoAutomationService {
       return "확인 실패";
     }
   }
+
   private boolean loginToInVideo(WebDriver driver, String gmailUsername, String gmailPassword) {
     String originalWindowHandle = driver.getWindowHandle();
     String googleLoginWindowHandle = null;

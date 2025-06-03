@@ -15,8 +15,7 @@
   <artifactId>shorts-creator</artifactId>
   <version>0.0.1-SNAPSHOT</version>
   <name>shorts-creator</name>
-  <description>YouTube Shorts Creator Application
-  </description>
+  <description>YouTube Shorts Creator Application</description>
 
   <properties>
     <java.version>17</java.version>
@@ -31,19 +30,36 @@
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-validation
-      </artifactId>
+      <artifactId>spring-boot-starter-validation</artifactId>
     </dependency>
+
+    <!-- OpenAI -->
     <dependency>
       <groupId>com.theokanning.openai-gpt3-java</groupId>
       <artifactId>service</artifactId>
       <version>${openai.version}</version>
     </dependency>
+
+    <!-- YouTube Data API -->
     <dependency>
       <groupId>com.google.apis</groupId>
       <artifactId>google-api-services-youtube</artifactId>
       <version>${youtube.version}</version>
     </dependency>
+
+    <!-- Google OAuth 2.0 Client -->
+    <dependency>
+      <groupId>com.google.oauth-client</groupId>
+      <artifactId>google-oauth-client-jetty</artifactId>
+      <version>1.34.1</version>
+    </dependency>
+    <dependency>
+      <groupId>com.google.oauth-client</groupId>
+      <artifactId>google-oauth-client-java6</artifactId>
+      <version>1.34.1</version>
+    </dependency>
+
+    <!-- Google API Client Libraries -->
     <dependency>
       <groupId>com.google.api-client</groupId>
       <artifactId>google-api-client</artifactId>
@@ -54,11 +70,15 @@
       <artifactId>google-http-client-jackson2</artifactId>
       <version>1.43.3</version>
     </dependency>
+
+    <!-- Telegram Bot -->
     <dependency>
       <groupId>org.telegram</groupId>
       <artifactId>telegrambots</artifactId>
       <version>6.9.7.1</version>
     </dependency>
+
+    <!-- Selenium -->
     <dependency>
       <groupId>org.seleniumhq.selenium</groupId>
       <artifactId>selenium-java</artifactId>
@@ -69,20 +89,24 @@
       <artifactId>webdrivermanager</artifactId>
       <version>5.8.0</version>
     </dependency>
+
+    <!-- Utilities -->
     <dependency>
       <groupId>org.projectlombok</groupId>
       <artifactId>lombok</artifactId>
       <optional>true</optional>
     </dependency>
     <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-test</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
       <groupId>me.paulschwarz</groupId>
       <artifactId>spring-dotenv</artifactId>
       <version>4.0.0</version>
+    </dependency>
+
+    <!-- Test -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
     </dependency>
   </dependencies>
 
@@ -102,4 +126,4 @@
       </plugin>
     </plugins>
   </build>
-</project> 
+</project>
