@@ -184,7 +184,7 @@ public class YouTubeUploadService {
           break;
         case MEDIA_IN_PROGRESS:
           double progress = uploader.getProgress() * 100;
-          log.info("📤 업로드 진행중: {:.1f}%", progress);
+          log.info("📤 업로드 진행중: %.1f%%", progress);
           break;
         case MEDIA_COMPLETE:
           log.info("📤 업로드 완료! 처리 중...");

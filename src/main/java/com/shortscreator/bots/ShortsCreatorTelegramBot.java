@@ -143,40 +143,48 @@ public class ShortsCreatorTelegramBot extends TelegramLongPollingBot {
     CompletableFuture<VideoCreationContent> futureContent = openAIService.generateVideoContentAndPrompt();
 
     futureContent.thenAcceptAsync(videoContent -> {
-      if (videoContent != null && videoContent.getInvideoPrompt() != null && !videoContent.getInvideoPrompt()
-          .startsWith("Error:")) {
+      if (videoContent != null && videoContent.getDailyTipTitle() != null && !videoContent.getDailyTipTitle().isEmpty()) {
         String taskId = UUID.randomUUID().toString().substring(0, 8);
         pendingVideoTasks.put(taskId, videoContent);
 
         log.info("OpenAI 콘텐츠 생성 완료 (Chat ID: {}, Task ID: {})", chatId, taskId);
         StringBuilder responseBuilder = new StringBuilder();
-        responseBuilder.append("🎉 콘텐츠 생성이 완료되었습니다\\! \\(Task ID: `").append(taskId).append("`\\)\n\n");
+        // Task ID 부분은 백틱을 사용하므로, 이스케이프 처리된 문자열을 직접 구성합니다.
+        responseBuilder.append("🎉 콘텐츠 생성이 완료되었습니다\\! Task ID: `").append(escapeMarkdownV2(taskId)).append("`\\)\n\n");
 
         responseBuilder.append("*✨ 일일 팁 제목 ✨*\n");
         responseBuilder.append(escapeMarkdownV2(videoContent.getDailyTipTitle())).append("\n\n");
 
+        String scriptPreview = videoContent.getDailyTipScript();
+        if (scriptPreview.length() > 300) {
+          scriptPreview = scriptPreview.substring(0, 297) + "...";
+        }
         responseBuilder.append("*📝 일일 팁 스크립트 📝*\n");
-        responseBuilder.append("```\n").append(videoContent.getDailyTipScript()).append("\n```\n\n");
+        responseBuilder.append("```\n").append(escapeMarkdownV2(scriptPreview)).append("\n```\n\n");
 
-        responseBuilder.append("*🎬 InVideo AI용 프롬프트 🎬*\n");
-        responseBuilder.append("```\n").append(videoContent.getInvideoPrompt()).append("\n```\n\n");
 
+        responseBuilder.append("*🎬 InVideo AI용 프롬프트가 내부적으로 생성되었습니다\\.*\n\n");
+
+        String descriptionPreview = videoContent.getYoutubeShortDescription();
+        if (descriptionPreview.length() > 300) {
+          descriptionPreview = descriptionPreview.substring(0, 297) + "...";
+        }
         responseBuilder.append("*📄 YouTube Short 설명 📄*\n");
-        responseBuilder.append("```\n").append(videoContent.getYoutubeShortDescription()).append("\n```");
+        responseBuilder.append("```\n").append(escapeMarkdownV2(descriptionPreview)).append("\n```");
 
-        // 인라인 키보드 버튼 생성
+
         InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup();
-
         InlineKeyboardButton createVideoButton = new InlineKeyboardButton();
-        createVideoButton.setText("🎬 이 내용으로 영상 만들기");
+        createVideoButton.setText("🎬 이 내용으로 영상 만들기"); // 버튼 텍스트에는 특수문자 사용 시 주의
         createVideoButton.setCallbackData(CALLBACK_CREATE_VIDEO_PREFIX + taskId);
-
         List<InlineKeyboardButton> rowInline = Collections.singletonList(createVideoButton);
         List<List<InlineKeyboardButton>> rowsInline = Collections.singletonList(rowInline);
-
         inlineKeyboardMarkup.setKeyboard(rowsInline);
 
-        sendTelegramMessageWithKeyboard(chatId, responseBuilder.toString(), inlineKeyboardMarkup);
+        String messageToSend = responseBuilder.toString();
+        log.debug("Message to be sent to Telegram:\n{}", messageToSend); // 로그 레벨을 DEBUG 또는 INFO로 조절
+        sendTelegramMessageWithKeyboard(chatId, messageToSend, inlineKeyboardMarkup);
+
 
       } else {
         log.error("OpenAI 콘텐츠 생성 실패 또는 유효하지 않은 결과 (Chat ID: {})", chatId);
@@ -328,8 +336,8 @@ public class ShortsCreatorTelegramBot extends TelegramLongPollingBot {
         .replace("*", "\\*")
         .replace("[", "\\[")
         .replace("]", "\\]")
-        .replace("(", "\\(")
-        .replace(")", "\\)")
+        .replace("(", "\\(") // <--- 이 부분이 이미 있는지 확인
+        .replace(")", "\\)") // <--- 이 부분이 이미 있는지 확인
         .replace("~", "\\~")
         .replace("`", "\\`")
         .replace(">", "\\>")

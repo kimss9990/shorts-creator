@@ -115,10 +115,12 @@ public class OpenAIService {
     messages.add(new ChatMessage("user", currentFullPrompt)); // 최종적으로 구성된 프롬프트 사용
 
     ChatCompletionRequest request = ChatCompletionRequest.builder()
-        .model(model) // 예: "gpt-4o", "gpt-4-turbo"
+        .model(model)
         .messages(messages)
-        .temperature(0.8) // 창의성 조절 (0.0 ~ 2.0)
-        .maxTokens(3500)  // 응답 최대 길이. JSON 응답이 길 수 있으므로 충분히 설정
+        .temperature(0.9)
+        .presencePenalty(0.4d)
+        .frequencyPenalty(0.4d)
+        .maxTokens(3500)
         .build();
 
     // GPT-3.5 Turbo 등에서는 response_format을 지원하지 않을 수 있으므로, 조건부로 설정하거나

@@ -117,8 +117,12 @@ public class InVideoAutomationService {
     options.addArguments("--disable-infobars");
     options.addArguments("--disable-dev-shm-usage");
     options.addArguments("--disable-browser-side-navigation");
-    options.addArguments("--disable-gpu");
     options.addArguments("--ignore-certificate-errors");
+
+    // ===== GPU 가속 및 성능 최적화 =====
+    options.addArguments("--enable-gpu");
+    options.addArguments("--enable-features=VaapiVideoDecoder");
+    options.addArguments("--use-gpu-in-tests");
 
     // 다운로드 설정
     Map<String, Object> prefs = new HashMap<>();

@@ -22,7 +22,7 @@ public class RecentTipsHistoryService {
   private final String recentTipsFilePath;
 
   private final LinkedList<String> recentTipTitles = new LinkedList<>();
-  private static final int MAX_RECENT_TIPS_TO_REMEMBER = 10; // 기억할 최대 팁 개수
+  private static final int MAX_RECENT_TIPS_TO_REMEMBER = 20; // 기억할 최대 팁 개수
 
   public RecentTipsHistoryService(ObjectMapper objectMapper,
       @Value("${openai.recent_tips_filepath:recent_tip_titles.json}") String recentTipsFilePath) {
