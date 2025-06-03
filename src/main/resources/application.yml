@@ -22,6 +22,7 @@ youtube:
     client_id: ${YOUTUBE_OAUTH_CLIENT_ID:YOUR_OAUTH_CLIENT_ID}
     client_secret: ${YOUTUBE_OAUTH_CLIENT_SECRET:YOUR_OAUTH_CLIENT_SECRET}
     redirect_uri: http://localhost:8080/oauth2/callback
+    callback_port: 8888  # OAuth 전용 포트 (Spring Boot 포트와 분리)
     scopes:
       - https://www.googleapis.com/auth/youtube.upload
       - https://www.googleapis.com/auth/youtube
@@ -111,7 +112,6 @@ invideo:
       selector: "//textarea[@name='brief']"
   download:
     folder_path: "C:\\Users\\kimss\\Videos"
-    # folder_path: "/home/myuser/videos"  # Linux
     wait_timeout_seconds: 300
 
 # Telegram Bot Configuration

@@ -57,13 +57,29 @@ public class YouTubeOAuthController {
   }
 
   /**
-   * OAuth 2.0 인증 프로세스를 시작합니다.
-   * 주의: 이 엔드포인트는 브라우저를 열어 사용자 인증을 요구합니다.
+   * OAuth 2.0 인증 프로세스를 시작합니다. (GET 방식 - 브라우저 친화적)
+   * 브라우저 주소창에서 직접 접속 가능합니다.
+   */
+  @GetMapping("/initiate")
+  public ResponseEntity<Map<String, Object>> initiateAuthGet() {
+    log.info("OAuth 2.0 인증 프로세스 시작 요청 (GET)");
+    return performAuthentication();
+  }
+
+  /**
+   * OAuth 2.0 인증 프로세스를 시작합니다. (POST 방식 - API 호출용)
+   * curl이나 API 클라이언트에서 사용합니다.
    */
   @PostMapping("/initiate")
-  public ResponseEntity<Map<String, Object>> initiateAuth() {
-    log.info("OAuth 2.0 인증 프로세스 시작 요청");
+  public ResponseEntity<Map<String, Object>> initiateAuthPost() {
+    log.info("OAuth 2.0 인증 프로세스 시작 요청 (POST)");
+    return performAuthentication();
+  }
 
+  /**
+   * 실제 인증 수행 로직 (GET/POST 공통)
+   */
+  private ResponseEntity<Map<String, Object>> performAuthentication() {
     Map<String, Object> response = new HashMap<>();
 
     try {
@@ -76,31 +92,31 @@ public class YouTubeOAuthController {
         return ResponseEntity.ok(response);
       }
 
-      // 새로운 인증 프로세스 시작
+      // 새로운 인증 프로세스 시작 (동기적으로 실행)
       log.info("새로운 OAuth 2.0 인증 프로세스를 시작합니다...");
 
-      // 별도 스레드에서 인증 실행 (브라우저 열림)
-      new Thread(() -> {
-        try {
-          youTubeOAuthService.getAuthenticatedYouTubeService();
-          log.info("OAuth 2.0 인증이 백그라운드에서 완료되었습니다.");
-        } catch (Exception e) {
-          log.error("백그라운드 OAuth 인증 중 오류: {}", e.getMessage(), e);
-        }
-      }).start();
+      // 수동 인증 수행
+      youTubeOAuthService.performManualAuthentication();
 
-      response.put("status", "initiated");
-      response.put("message", "OAuth 2.0 인증 프로세스가 시작되었습니다. 브라우저에서 Google 계정으로 로그인하세요.");
-      response.put("action", "browser_opened");
-      response.put("next_step", "Complete authentication in browser, then check status");
+      response.put("status", "completed");
+      response.put("message", "🎉 OAuth 2.0 인증이 성공적으로 완료되었습니다!");
+      response.put("action", "authentication_completed");
+      response.put("next_step", "이제 YouTube 업로드 기능을 사용할 수 있습니다.");
+      response.put("test_command", "curl http://localhost:8080/api/youtube/config/playlists");
 
-      log.info("OAuth 인증 프로세스가 시작되었습니다.");
+      log.info("OAuth 인증 프로세스가 완료되었습니다.");
       return ResponseEntity.ok(response);
 
+    } catch (IllegalStateException e) {
+      log.warn("OAuth 인증 상태 오류: {}", e.getMessage());
+      response.put("status", "authentication_required");
+      response.put("message", e.getMessage());
+      return ResponseEntity.badRequest().body(response);
     } catch (Exception e) {
       log.error("OAuth 인증 시작 중 오류: {}", e.getMessage(), e);
       response.put("status", "error");
-      response.put("message", "OAuth 인증 시작 중 오류가 발생했습니다: " + e.getMessage());
+      response.put("message", "OAuth 인증 중 오류가 발생했습니다: " + e.getMessage());
+      response.put("help", "문제가 지속되면 기존 토큰을 삭제하고 다시 시도하세요: DELETE /api/youtube/oauth/credentials");
       return ResponseEntity.internalServerError().body(response);
     }
   }

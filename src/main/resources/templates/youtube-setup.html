@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube OAuth 설정 - Shorts Creator</title>
+  <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        .status-card {
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border-left: 5px solid;
+        }
+        .status-success {
+            background: #d4edda;
+            border-color: #28a745;
+            color: #155724;
+        }
+        .status-warning {
+            background: #fff3cd;
+            border-color: #ffc107;
+            color: #856404;
+        }
+        .status-error {
+            background: #f8d7da;
+            border-color: #dc3545;
+            color: #721c24;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            text-decoration: none;
+            display: inline-block;
+            margin: 10px 5px;
+            transition: all 0.3s ease;
+        }
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #0056b3;
+            transform: translateY(-2px);
+        }
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        .btn-success:hover {
+            background: #1e7e34;
+            transform: translateY(-2px);
+        }
+        .btn-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+        .btn-warning:hover {
+            background: #e0a800;
+            transform: translateY(-2px);
+        }
+        .code-block {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+        .step {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+        }
+        .step-number {
+            background: #007bff;
+            color: white;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+        .feature-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .feature-list li:before {
+            content: "✅ ";
+            color: #28a745;
+            font-weight: bold;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 2s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+  <h1>🎬 YouTube Shorts Creator</h1>
+  <h2 style="text-align: center; color: #666;">OAuth 2.0 인증 설정</h2>
+
+  <!-- 현재 상태 표시 -->
+  <div class="status-card" th:classappend="${isAuthenticated} ? 'status-success' : 'status-warning'">
+    <h3>현재 인증 상태</h3>
+    <p th:text="${authStatus}">인증 상태를 확인 중...</p>
+  </div>
+
+  <!-- 인증된 경우 -->
+  <div th:if="${isAuthenticated}">
+    <div class="step">
+      <h3>🎉 인증 완료!</h3>
+      <p>YouTube OAuth 2.0 인증이 성공적으로 완료되었습니다. 이제 다음 기능들을 사용할 수 있습니다:</p>
+      <ul class="feature-list">
+        <li>YouTube Shorts 자동 업로드</li>
+        <li>재생목록 자동 관리</li>
+        <li>메타데이터 자동 설정</li>
+        <li>Telegram Bot 완전 자동화</li>
+      </ul>
+
+      <div style="text-align: center; margin: 20px 0;">
+        <a th:href="${testUrl}" class="btn btn-success" onclick="testAPI(this.href); return false;">
+          📋 재생목록 조회 테스트
+        </a>
+        <a href="/api/youtube/config/upload-settings" class="btn btn-primary">
+          ⚙️ 업로드 설정 확인
+        </a>
+      </div>
+    </div>
+
+    <div class="step">
+      <h3>📱 Telegram Bot 사용법</h3>
+      <div class="code-block">
+        /generate_tip  ← 새 콘텐츠 생성 및 자동 업로드<br>
+        /youtube_auth  ← 인증 상태 확인<br>
+        /help          ← 도움말
+      </div>
+    </div>
+  </div>
+
+  <!-- 인증되지 않은 경우 -->
+  <div th:unless="${isAuthenticated}">
+    <div class="step">
+      <span class="step-number">1</span>
+      <strong>Google Cloud Console 설정 확인</strong>
+      <p>다음 리다이렉션 URI들이 등록되어 있는지 확인하세요:</p>
+      <div class="code-block">
+        http://localhost:8888/oauth2/callback<br>
+        http://localhost:8889/oauth2/callback<br>
+        http://localhost:8890/oauth2/callback
+      </div>
+    </div>
+
+    <div class="step">
+      <span class="step-number">2</span>
+      <strong>OAuth 인증 시작</strong>
+      <p>버튼을 클릭하면 Google 로그인 페이지가 열립니다. YouTube 업로드 권한을 승인해주세요.</p>
+      <div style="text-align: center;">
+        <a th:href="${initiateUrl}" class="btn btn-primary" onclick="startAuth(this.href); return false;">
+          🔐 Google OAuth 인증 시작
+        </a>
+      </div>
+    </div>
+
+    <div class="step">
+      <span class="step-number">3</span>
+      <strong>인증 완료 확인</strong>
+      <p>Google 로그인 완료 후 페이지를 새로고침하여 인증 상태를 확인하세요.</p>
+      <div style="text-align: center;">
+        <button class="btn btn-warning" onclick="location.reload();">
+          🔄 페이지 새로고침
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 로딩 표시 -->
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <p>처리 중...</p>
+  </div>
+
+  <!-- API 테스트 결과 표시 -->
+  <div id="result" style="margin-top: 20px;"></div>
+
+  <!-- 추가 정보 -->
+  <div class="step" style="margin-top: 30px; background: #f8f9fa;">
+    <h3>ℹ️ 추가 정보</h3>
+    <p><strong>API 엔드포인트:</strong></p>
+    <ul>
+      <li><code>GET/POST /api/youtube/oauth/initiate</code> - 인증 시작</li>
+      <li><code>GET /api/youtube/oauth/status</code> - 인증 상태 확인</li>
+      <li><code>GET /api/youtube/config/playlists</code> - 재생목록 조회</li>
+      <li><code>DELETE /api/youtube/oauth/credentials</code> - 인증 정보 삭제</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+        function startAuth(url) {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('result').innerHTML = '';
+
+            fetch(url, { method: 'GET' })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('loading').style.display = 'none';
+                    if (data.status === 'completed') {
+                        showResult('success', '✅ ' + data.message);
+                        setTimeout(() => location.reload(), 2000);
+                    } else if (data.status === 'already_authenticated') {
+                        showResult('warning', '⚠️ ' + data.message);
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        showResult('error', '❌ ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('loading').style.display = 'none';
+                    showResult('error', '❌ 네트워크 오류: ' + error.message);
+                });
+        }
+
+        function testAPI(url) {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('result').innerHTML = '';
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('loading').style.display = 'none';
+                    if (data.playlists) {
+                        showResult('success', `✅ 재생목록 ${data.playlist_count}개 조회 성공!`);
+                    } else {
+                        showResult('success', '✅ API 테스트 성공!');
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('loading').style.display = 'none';
+                    showResult('error', '❌ API 테스트 실패: ' + error.message);
+                });
+        }
+
+        function showResult(type, message) {
+            const resultDiv = document.getElementById('result');
+            const className = type === 'success' ? 'status-success' :
+                             type === 'warning' ? 'status-warning' : 'status-error';
+            resultDiv.innerHTML = `<div class="status-card ${className}"><p>${message}</p></div>`;
+        }
+    </script>
+</body>
+</html>
