@@ -197,6 +197,7 @@ public class InVideoAutomationService {
       log.info("영상 생성 설정 페이지 로딩 대기 중... (지표 요소: {}, 대기 시간: {}초)",
           invideoConfirmationPageIndicatorXPath, settingsPageLoadTimeoutSeconds);
       WebDriverWait settingsPageWait = new WebDriverWait(driver, Duration.ofSeconds(settingsPageLoadTimeoutSeconds));
+      WebDriverWait shortWaitForSettingsElement = new WebDriverWait(driver, Duration.ofSeconds(15));
 
       settingsPageWait.until(
           ExpectedConditions.visibilityOfElementLocated(By.xpath(invideoConfirmationPageIndicatorXPath))
@@ -210,7 +211,7 @@ public class InVideoAutomationService {
         WebElement audienceButton = null;
 
         try {
-          audienceButton = settingsPageWait.until(
+          audienceButton = shortWaitForSettingsElement.until(
               ExpectedConditions.elementToBeClickable(By.xpath(audienceMarriedAdultsButtonXPath)));
           log.info("'Married adults' 버튼을 찾았습니다.");
         } catch (Exception e) {
@@ -239,7 +240,7 @@ public class InVideoAutomationService {
         WebElement visualStyleButton = null;
 
         try {
-          visualStyleButton = settingsPageWait.until(
+          visualStyleButton = shortWaitForSettingsElement.until(
               ExpectedConditions.elementToBeClickable(By.xpath(visualStyleInspirationalButtonXPath)));
           log.info("'Inspirational' 버튼을 찾았습니다.");
         } catch (Exception e) {
