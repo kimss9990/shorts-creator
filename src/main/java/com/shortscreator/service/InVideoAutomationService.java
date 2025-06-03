@@ -9,12 +9,14 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.openqa.selenium.By;
@@ -66,8 +68,7 @@ public class InVideoAutomationService {
   // --- InVideo AI 영상 생성 페이지 관련 설정 값들 (application.yml에 추가 필요) ---
   @Value("${invideo.editor.prompt_input_selector:textarea[placeholder*='your script or idea here']}") // 예시 Selector
   private String invideoPromptInputSelector;
-  @Value("${invideo.editor.generate_button_selector://button[contains(.//text(), 'Generate') and contains(.//text(), 'video')]}")
-  // Generate와 video가 포함된 버튼
+  @Value("${invideo.editor.generate_button_selector://button[contains(.//text(), 'Generate') and contains(.//text(), 'video')]}") // Generate와 video가 포함된 버튼
   private String invideoGenerateButtonSelector;
 
   @Value("${invideo.access_token_filepath:invideo_access_token.txt}")
@@ -88,6 +89,12 @@ public class InVideoAutomationService {
   @Value("${invideo.editor.video_generation_timeout_seconds:600}")
   private int videoGenerationTimeoutSeconds;
 
+  // 파일 관리 설정
+  @Value("${invideo.download.folder_path:#{systemProperties['user.home']}/Downloads}")
+  private String downloadFolderPath;
+  @Value("${invideo.download.wait_timeout_seconds:300}")
+  private int downloadWaitTimeoutSeconds;
+
   private static final String V3_COPILOT_URL_FORMAT = "https://ai.invideo.io/workspace/%s/v30-copilot";
   private static final Pattern WORKSPACE_ID_PATTERN = Pattern.compile(
       "https://ai\\.invideo\\.io/workspace/([a-f0-9\\-]+)/.*");
@@ -95,11 +102,12 @@ public class InVideoAutomationService {
   private static final String LOCAL_STORAGE_ACCESS_TOKEN_KEY = "access_token";
 
   private final ObjectMapper objectMapper;
+  private final YouTubeService youTubeService;
 
-  // WebDriver 옵션 (WebDriverConfig에서 가져오거나 여기서 정의)
+  // WebDriver 옵션 (다운로드 폴더 설정 포함)
   private ChromeOptions getChromeOptions() {
     ChromeOptions options = new ChromeOptions();
-    String userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"; // 최신 User-Agent로!
+    String userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
     options.addArguments("--user-agent=" + userAgent);
     options.addArguments("--disable-blink-features=AutomationControlled");
     options.setExperimentalOption("excludeSwitches", Arrays.asList("enable-automation", "load-extension"));
@@ -110,18 +118,23 @@ public class InVideoAutomationService {
     options.addArguments("--disable-browser-side-navigation");
     options.addArguments("--disable-gpu");
     options.addArguments("--ignore-certificate-errors");
-    // options.addArguments("--start-maximized"); // 필요시
-    // options.addArguments("--headless=new"); // 백그라운드 실행 원할 시 (주의: InVideo UI 복잡도에 따라 헤드리스 문제 발생 가능)
+
+    // 다운로드 설정
     Map<String, Object> prefs = new HashMap<>();
     prefs.put("credentials_enable_service", false);
     prefs.put("profile.password_manager_enabled", false);
+    prefs.put("download.default_directory", downloadFolderPath);
+    prefs.put("download.prompt_for_download", false);
+    prefs.put("download.directory_upgrade", true);
+    prefs.put("safebrowsing.enabled", true);
     options.setExperimentalOption("prefs", prefs);
+
     return options;
   }
 
   @Async("taskExecutor")
   public CompletableFuture<String> createVideoInInVideoAI(String gmailUsername, String gmailPassword,
-      String invideoAiPromptForVideo) {
+      String invideoAiPromptForVideo, String videoTitle, String videoDescription) {
     WebDriver driver = null;
     log.info("InVideo AI 영상 생성 자동화 시작...");
 
@@ -266,13 +279,30 @@ public class InVideoAutomationService {
       log.info("설정 페이지 'Continue' 버튼 클릭 완료. 실제 영상 생성 프로세스가 시작될 것으로 예상됩니다.");
 
       // --- 영상 생성 완료 대기 및 다운로드 시작 ---
-      boolean downloadStarted = waitForVideoCompletionAndStartDownload(driver, settingsPageWait);
-      if (downloadStarted) {
-        selectedOptionsMessage += "\n\n🎬 영상 생성 완료 및 다운로드 시작됨";
-        log.info("InVideo AI 영상 생성 및 다운로드 프로세스가 완료되었습니다.");
+      String downloadedFilePath = waitForVideoCompletionAndDownload(driver, settingsPageWait);
+      if (downloadedFilePath != null) {
+        selectedOptionsMessage += "\n\n🎬 영상 다운로드 완료: " + escapeForMarkdown(new File(downloadedFilePath).getName());
+
+        // YouTube Shorts 업로드
+        boolean uploadSuccess = uploadToYouTubeShorts(downloadedFilePath, videoTitle, videoDescription);
+        if (uploadSuccess) {
+          selectedOptionsMessage += "\n📺 YouTube Shorts 업로드 완료";
+
+          // 로컬 파일 삭제
+          boolean deleteSuccess = deleteLocalFile(downloadedFilePath);
+          if (deleteSuccess) {
+            selectedOptionsMessage += "\n🗑️ 로컬 파일 삭제 완료";
+          } else {
+            selectedOptionsMessage += "\n⚠️ 로컬 파일 삭제 실패";
+          }
+        } else {
+          selectedOptionsMessage += "\n❌ YouTube 업로드 실패";
+        }
+
+        log.info("InVideo AI 영상 생성, 다운로드, 업로드 프로세스가 완료되었습니다.");
       } else {
-        selectedOptionsMessage += "\n\n⚠️ 영상 생성은 진행되었으나 다운로드 시작 확인 실패";
-        log.warn("영상 생성 후 다운로드 시작을 확인하지 못했습니다.");
+        selectedOptionsMessage += "\n\n⚠️ 영상 생성은 진행되었으나 다운로드 실패";
+        log.warn("영상 생성 후 다운로드를 완료하지 못했습니다.");
       }
 
       return CompletableFuture.completedFuture("✅ 영상 생성 시작 완료\\n\\n" + selectedOptionsMessage);
@@ -404,10 +434,9 @@ public class InVideoAutomationService {
 
   /**
    * v4.0 워크스페이스 URL에서 워크스페이스 ID를 추출하여 v3.0 Copilot 페이지로 리다이렉트
-   *
-   * @param driver     WebDriver 인스턴스
+   * @param driver WebDriver 인스턴스
    * @param currentUrl 현재 v4.0 워크스페이스 URL
-   * @param wait       WebDriverWait 인스턴스
+   * @param wait WebDriverWait 인스턴스
    * @return 리다이렉트 성공 여부
    */
   private boolean redirectToV30Copilot(WebDriver driver, String currentUrl, WebDriverWait wait) {
@@ -439,9 +468,8 @@ public class InVideoAutomationService {
 
   /**
    * 사용 가능한 Audience 옵션 중 랜덤으로 하나를 선택
-   *
    * @param driver WebDriver 인스턴스
-   * @param wait   WebDriverWait 인스턴스
+   * @param wait WebDriverWait 인스턴스
    * @return 선택된 WebElement 또는 null
    */
   private WebElement selectRandomAudienceOption(WebDriver driver, WebDriverWait wait) {
@@ -476,9 +504,8 @@ public class InVideoAutomationService {
 
   /**
    * 사용 가능한 Visual Style 옵션 중 랜덤으로 하나를 선택
-   *
    * @param driver WebDriver 인스턴스
-   * @param wait   WebDriverWait 인스턴스
+   * @param wait WebDriverWait 인스턴스
    * @return 선택된 WebElement 또는 null
    */
   private WebElement selectRandomVisualStyleOption(WebDriver driver, WebDriverWait wait) {
@@ -513,7 +540,6 @@ public class InVideoAutomationService {
 
   /**
    * 현재 선택된 모든 옵션들을 확인하고 문자열로 반환
-   *
    * @param driver WebDriver 인스턴스
    * @return 선택된 옵션들의 요약 문자열 (MarkdownV2 이스케이프 처리됨)
    */
@@ -543,13 +569,12 @@ public class InVideoAutomationService {
   }
 
   /**
-   * 영상 생성 완료를 대기하고 다운로드를 시작하는 메서드
-   *
+   * 영상 생성 완료를 대기하고 다운로드를 완료하는 메서드
    * @param driver WebDriver 인스턴스
-   * @param wait   WebDriverWait 인스턴스
-   * @return 다운로드 시작 성공 여부
+   * @param wait WebDriverWait 인스턴스
+   * @return 다운로드된 파일의 전체 경로, 실패 시 null
    */
-  private boolean waitForVideoCompletionAndStartDownload(WebDriver driver, WebDriverWait wait) {
+  private String waitForVideoCompletionAndDownload(WebDriver driver, WebDriverWait wait) {
     try {
       log.info("영상 생성 완료 대기 중... (최대 {}분)", videoGenerationTimeoutSeconds / 60);
 
@@ -562,6 +587,9 @@ public class InVideoAutomationService {
 
       log.info("Download 버튼이 활성화되었습니다. 영상 생성이 완료된 것으로 보입니다.");
       Thread.sleep(2000); // 안정화 대기
+
+      // 다운로드 전 기존 파일 목록 확인
+      Set<String> beforeDownloadFiles = getFilesInDownloadFolder();
 
       // Download 버튼 클릭
       JavascriptExecutor js = (JavascriptExecutor) driver;
@@ -595,19 +623,141 @@ public class InVideoAutomationService {
       js.executeScript("arguments[0].scrollIntoView(true);", continueButton);
       Thread.sleep(500);
       continueButton.click();
-      log.info("Download Settings의 Continue 버튼 클릭 완료. 다운로드가 시작될 것입니다.");
+      log.info("Download Settings의 Continue 버튼 클릭 완료. 다운로드가 시작됩니다.");
 
-      return true;
+      // 다운로드 완료 대기
+      String downloadedFilePath = waitForDownloadCompletion(beforeDownloadFiles);
+      if (downloadedFilePath != null) {
+        log.info("다운로드 완료: {}", downloadedFilePath);
+        return downloadedFilePath;
+      } else {
+        log.error("다운로드 완료를 확인하지 못했습니다.");
+        return null;
+      }
 
     } catch (Exception e) {
-      log.error("영상 생성 완료 대기 또는 다운로드 시작 중 오류 발생: {}", e.getMessage(), e);
+      log.error("영상 생성 완료 대기 또는 다운로드 중 오류 발생: {}", e.getMessage(), e);
+      return null;
+    }
+  }
+
+  /**
+   * 다운로드 폴더의 파일 목록을 가져오는 메서드
+   */
+  private Set<String> getFilesInDownloadFolder() {
+    try {
+      File downloadDir = new File(downloadFolderPath);
+      if (!downloadDir.exists()) {
+        downloadDir.mkdirs();
+        return new HashSet<>();
+      }
+
+      File[] files = downloadDir.listFiles();
+      if (files == null) {
+        return new HashSet<>();
+      }
+
+      return Arrays.stream(files)
+          .map(File::getName)
+          .collect(Collectors.toSet());
+    } catch (Exception e) {
+      log.error("다운로드 폴더 파일 목록 확인 중 오류: {}", e.getMessage());
+      return new HashSet<>();
+    }
+  }
+
+  /**
+   * 다운로드 완료를 대기하고 새로 다운로드된 파일 경로를 반환
+   */
+  private String waitForDownloadCompletion(Set<String> beforeFiles) {
+    try {
+      log.info("다운로드 완료 대기 중... (최대 {}초)", downloadWaitTimeoutSeconds);
+
+      long startTime = System.currentTimeMillis();
+      long timeoutMillis = downloadWaitTimeoutSeconds * 1000L;
+
+      while (System.currentTimeMillis() - startTime < timeoutMillis) {
+        Set<String> currentFiles = getFilesInDownloadFolder();
+
+        // 새로 추가된 파일 찾기
+        for (String fileName : currentFiles) {
+          if (!beforeFiles.contains(fileName) && isVideoFile(fileName) && !fileName.endsWith(".crdownload")) {
+            String fullPath = new File(downloadFolderPath, fileName).getAbsolutePath();
+            log.info("새로 다운로드된 파일 감지: {}", fileName);
+            return fullPath;
+          }
+        }
+
+        Thread.sleep(2000); // 2초마다 확인
+      }
+
+      log.error("다운로드 완료 대기 시간 초과");
+      return null;
+    } catch (Exception e) {
+      log.error("다운로드 완료 대기 중 오류: {}", e.getMessage());
+      return null;
+    }
+  }
+
+  /**
+   * 파일이 비디오 파일인지 확인
+   */
+  private boolean isVideoFile(String fileName) {
+    String[] videoExtensions = {".mp4", ".avi", ".mov", ".wmv", ".flv", ".webm", ".mkv"};
+    String lowerFileName = fileName.toLowerCase();
+    return Arrays.stream(videoExtensions).anyMatch(lowerFileName::endsWith);
+  }
+
+  /**
+   * YouTube Shorts에 영상을 업로드하는 메서드
+   */
+  private boolean uploadToYouTubeShorts(String videoFilePath, String title, String description) {
+    try {
+      log.info("YouTube Shorts 업로드 시작: {}", videoFilePath);
+
+      // YouTubeService를 통해 업로드 (이 메서드는 별도로 구현 필요)
+      boolean uploadResult = youTubeService.uploadShorts(videoFilePath, title, description);
+
+      if (uploadResult) {
+        log.info("YouTube Shorts 업로드 성공");
+        return true;
+      } else {
+        log.error("YouTube Shorts 업로드 실패");
+        return false;
+      }
+    } catch (Exception e) {
+      log.error("YouTube Shorts 업로드 중 오류 발생: {}", e.getMessage(), e);
+      return false;
+    }
+  }
+
+  /**
+   * 로컬 파일을 삭제하는 메서드
+   */
+  private boolean deleteLocalFile(String filePath) {
+    try {
+      File file = new File(filePath);
+      if (file.exists()) {
+        boolean deleted = file.delete();
+        if (deleted) {
+          log.info("로컬 파일 삭제 완료: {}", filePath);
+          return true;
+        } else {
+          log.error("로컬 파일 삭제 실패: {}", filePath);
+          return false;
+        }
+      } else {
+        log.warn("삭제할 파일이 존재하지 않음: {}", filePath);
+        return false;
+      }
+    } catch (Exception e) {
+      log.error("로컬 파일 삭제 중 오류 발생: {}", e.getMessage(), e);
       return false;
     }
   }
 
   /**
    * Download Settings 다이얼로그에서 현재 선택된 설정들을 확인
-   *
    * @param driver WebDriver 인스턴스
    * @return 다운로드 설정 요약 문자열
    */
@@ -641,8 +791,7 @@ public class InVideoAutomationService {
   private String getSelectedDownloadOption(WebDriver driver, String sectionName) {
     try {
       List<WebElement> selectedButtons = driver.findElements(
-          By.xpath(String.format("//div[contains(text(), '%s')]/..//button[contains(@class, 'hWMCax-selected-true')]",
-              sectionName)));
+          By.xpath(String.format("//div[contains(text(), '%s')]/..//button[contains(@class, 'hWMCax-selected-true')]", sectionName)));
 
       if (!selectedButtons.isEmpty()) {
         WebElement selectedButton = selectedButtons.get(0);
@@ -683,7 +832,7 @@ public class InVideoAutomationService {
               (classAttr.contains("selected-true") || classAttr.contains("hWMCax-selected-true"));
 
           log.info("  버튼 {}: value='{}', text='{}', selected={}, class='{}'",
-              i + 1, value, text, isSelected, classAttr);
+              i+1, value, text, isSelected, classAttr);
         }
       }
     } catch (Exception e) {
@@ -692,9 +841,7 @@ public class InVideoAutomationService {
   }
 
   private String escapeForMarkdown(String text) {
-    if (text == null) {
-      return "";
-    }
+    if (text == null) return "";
     return text
         .replace("_", "\\_")
         .replace("*", "\\*")
@@ -709,8 +856,7 @@ public class InVideoAutomationService {
 
   /**
    * 특정 섹션에서 선택된 옵션을 찾아서 반환
-   *
-   * @param driver      WebDriver 인스턴스
+   * @param driver WebDriver 인스턴스
    * @param sectionName 섹션 이름 (예: "Visual style", "Audiences", "Platform")
    * @return 선택된 옵션의 텍스트
    */
@@ -721,8 +867,7 @@ public class InVideoAutomationService {
           // 패턴 1: selected-true 클래스
           String.format("//div[contains(text(), '%s')]/..//button[contains(@class, 'selected-true')]", sectionName),
           // 패턴 2: hWMCax-selected-true 클래스 (실제 HTML 구조 기반)
-          String.format("//div[contains(text(), '%s')]/..//button[contains(@class, 'hWMCax-selected-true')]",
-              sectionName),
+          String.format("//div[contains(text(), '%s')]/..//button[contains(@class, 'hWMCax-selected-true')]", sectionName),
           // 패턴 3: 첫 번째 버튼 (기본 선택된 경우가 많음)
           String.format("//div[contains(text(), '%s')]/..//button[1]", sectionName),
           // 패턴 4: value 속성이 있는 모든 버튼 중 첫 번째
@@ -781,7 +926,6 @@ public class InVideoAutomationService {
       return "확인 실패";
     }
   }
-
   private boolean loginToInVideo(WebDriver driver, String gmailUsername, String gmailPassword) {
     String originalWindowHandle = driver.getWindowHandle();
     String googleLoginWindowHandle = null;
