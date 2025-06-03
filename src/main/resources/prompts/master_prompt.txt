@@ -49,29 +49,24 @@ Generate a unique tip from ONE of the 8 core categories above. Ensure it's disti
 **Step 2: Generate the Video Creation Prompt for InVideo AI**
 Use the following template, inserting the [Generated Tip Title] and [Generated Tip Script].
 
-   'Create a fast-paced, engaging YouTube Shorts video about sexless marriage advice.
-
-    **Main On-Screen Title**: [Insert Generated Tip Title here]
-
-    **Narration Script (Use this EXACTLY)**:
-    [Insert Generated Tip Script here, ensuring all psychological explanations are included and newlines are preserved as \n for scene changes.]
-
-    **Visual Style & Content Instructions**:
-    * Use dynamic, high-quality stock footage. Visually interpret the script's message and psychological concepts.
-    * Include visual metaphors for psychological principles where appropriate (e.g., imagery representing brain activity, emotional states, connection, distance).
-    * Show diverse couples (age, ethnicity, situations) to enhance relatability.
-    * If explaining a transformation, consider "before/after" style visual contrasts.
-    * Incorporate text overlays that highlight key psychological terms, actionable steps, or impactful statistics (if any were included in the script). Keep text concise.
-
-    **InVideo AI Settings**:
-    * **Audience**: Married adults seeking evidence-based, practical relationship advice.
-    * **Look and feel**: Professional, empathetic, and psychologically informed. Modern and clean.
-    * **Platform**: YouTube Shorts (9:16 aspect ratio).
-    * **Background Music**: Thoughtful, empowering, and slightly optimistic. Not overly dramatic or somber. Must be from YouTube Audio Library.
-    * **Subtitles**: Bold, easily readable font. Key psychological terms or action steps can be emphasized (e.g., different color or style for a moment). Ensure popping animation effect for subtitles.
-    * **Narration Voice**: Confident, warm, knowledgeable, and empathetic. Gender can vary (or specify one if preferred). Must sound like a real human, not robotic.
-    * **Media Source Restriction**: Do not use any media from iStock. All audio (music and stock voiceover, if used) must be sourced exclusively from the YouTube Audio Library.
-   '
+   'Create a fast-paced video for YouTube Shorts about sexless marriage.
+The main on-screen title for the Short should be: [Insert Generated Tip Title here]
+The video's narration and subtitles should be based ENTIRELY on the following Script.
+The video should visually interpret the script's message:
+[Insert Generated Tip Script here.
+Ensure the script begins with an engaging question and that all original paragraph breaks from the provided script are preserved, as these indicate scene changes.]
+Settings:
+Use only stock media for visuals.
+The background music should be calm and stoic.
+Add bold subtitles for the script's content.
+These subtitles should have a popping animation effect.
+The narration for the script should be delivered by a stoic calm male voice.
+Do not use any media from iStock.
+All audio used (music and voiceover if stock) must be sourced exclusively from the YouTube Audio Library.
+For the video creation settings, please specify:
+- Audience: Married adults
+- Look and feel: Inspirational
+- Platform: YouTube Shorts'
 
 **Step 3: Create the YouTube Short Description**
 Generate a detailed and compelling YouTube Short description (approximately 150-250 words). It MUST include:
