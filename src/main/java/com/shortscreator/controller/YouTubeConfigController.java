@@ -39,7 +39,7 @@ public class YouTubeConfigController {
       settings.put("made_for_kids", uploadConfig.getMadeForKids());
       settings.put("default_playlist", uploadConfig.getDefaultPlaylist());
       settings.put("default_privacy_status", uploadConfig.getDefaultPrivacyStatus());
-      settings.put("recording_location", uploadConfig.getRecordingLocation());
+//      settings.put("recording_location", uploadConfig.getRecordingLocation());
       settings.put("auto_thumbnail", uploadConfig.getAutoThumbnail());
       settings.put("license", uploadConfig.getLicense());
       settings.put("embeddable", uploadConfig.getEmbeddable());

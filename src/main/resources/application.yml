@@ -37,17 +37,17 @@ youtube:
     category_id: "22"  # People & Blogs
     default_language: "en"  # English
 
-    # 기본 태그들 (ai 제거됨)
+    # 기본 태그들
     default_tags:
       - "shorts"
-      - "tips"
-      - "relationships"
       - "marriage"
+      - "relationships"
       - "advice"
-      - "sexless"
       - "couples"
+      - "intimacy"
+      - "communication"
 
-    # 시청자 설정
+    # 🔧 중요: 시청자 설정 - 명시적으로 false
     made_for_kids: false
 
     # 재생목록 설정
@@ -56,7 +56,7 @@ youtube:
     # 공개 설정
     default_privacy_status: "private"  # private, public, unlisted
 
-    # 위치 정보
+    # 🔧 위치 정보 (정확한 설정)
     recording_location: "United States"
 
     # 썸네일 설정
@@ -69,6 +69,16 @@ youtube:
 
     # Shorts 특화 설정
     shorts_remix_enabled: true
+
+    # 🔧 새로 추가: 콘텐츠 등급 관련 설정
+    content_rating:
+      self_declared_made_for_kids: false  # 자체 신고 아동용 콘텐츠가 아님
+      has_custom_thumbnail: true
+
+    # 🔧 새로 추가: 지역 설정
+    region:
+      allowed_countries: [ ]  # 빈 배열 = 모든 국가 허용
+      blocked_countries: [ ]  # 차단할 국가 없음
 
 # InVideo AI Login Automation Configuration
 invideo:

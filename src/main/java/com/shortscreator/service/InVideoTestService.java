@@ -1,7 +1,17 @@
 package com.shortscreator.service;
 
-import com.shortscreator.service.YouTubeService;
 import io.github.bonigarcia.wdm.WebDriverManager;
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.time.Duration;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.openqa.selenium.By;
@@ -15,15 +25,6 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-
-import java.io.File;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.time.Duration;
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -226,7 +227,7 @@ public class InVideoTestService {
     options.addArguments("--enable-tcp-fast-open");
 
     // 브라우저 UI 최적화 (필요시)
-    // options.addArguments("--headless"); // 헤드리스 모드 (UI 없음)
+    options.addArguments("--headless"); // 헤드리스 모드 (UI 없음)
     options.addArguments("--disable-extensions");
     options.addArguments("--disable-plugins");
     options.addArguments("--disable-images"); // 이미지 로딩 비활성화로 속도 향상

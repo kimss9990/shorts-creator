@@ -90,22 +90,37 @@ public class YouTubeUploadService {
       snippet.setCategoryId(uploadConfig.getCategoryId());
       snippet.setDefaultLanguage(uploadConfig.getDefaultLanguage());
 
-      // 위치 정보 설정 (선택사항)
-      if (uploadConfig.getRecordingLocation() != null && !uploadConfig.getRecordingLocation().isEmpty()) {
-        // YouTube API에서 위치 정보는 별도 처리가 필요할 수 있음
-        log.debug("촬영 위치 설정: {}", uploadConfig.getRecordingLocation());
-      }
-
       video.setSnippet(snippet);
 
-      // 상태 (공개 설정) 설정
+      // 상태 (공개 설정) 설정 - 중요한 부분 개선
       VideoStatus status = new VideoStatus();
       status.setPrivacyStatus(privacyStatus);
+
+      // 아동용 콘텐츠 설정 - 명시적으로 false 설정
       status.setMadeForKids(uploadConfig.getMadeForKids());
+      log.info("아동용 콘텐츠 설정: {}", uploadConfig.getMadeForKids());
+
+      // 추가 상태 설정
       status.setEmbeddable(uploadConfig.getEmbeddable());
       status.setPublicStatsViewable(uploadConfig.getPublicStatsViewable());
       status.setLicense(uploadConfig.getLicense());
+
+      // 🔧 새로 추가: 변경된 콘텐츠 표시 (성인 콘텐츠가 아님을 명시)
+      status.setSelfDeclaredMadeForKids(uploadConfig.getMadeForKids());
+
       video.setStatus(status);
+
+      // 🔧 새로 추가: 콘텐츠 등급 설정
+      VideoContentDetails contentDetails = new VideoContentDetails();
+      // Shorts의 경우 duration은 자동으로 설정되므로 생략
+      // contentDetails.setDuration("PT60S"); // 최대 60초로 제한
+
+      // 지역 제한 없음 설정
+      VideoContentDetailsRegionRestriction regionRestriction = new VideoContentDetailsRegionRestriction();
+      regionRestriction.setBlocked(new ArrayList<>()); // 차단된 국가 없음
+      contentDetails.setRegionRestriction(regionRestriction);
+
+      video.setContentDetails(contentDetails);
 
       // 파일 입력 스트림 생성
       FileInputStream inputStream = new FileInputStream(videoFile);
@@ -114,14 +129,24 @@ public class YouTubeUploadService {
       // 파일 크기 설정 (업로드 진행률 표시용)
       mediaContent.setLength(videoFile.length());
 
-      // YouTube 업로드 요청 생성
+      // YouTube 업로드 요청 생성 - 더 많은 부분 포함
       YouTube.Videos.Insert videoInsert = youtube.videos()
-          .insert(Arrays.asList("snippet", "status"), video, mediaContent);
+          .insert(Arrays.asList("snippet", "status", "recordingDetails", "contentDetails"), video, mediaContent);
 
       // 업로드 진행률 리스너 설정
       MediaHttpUploader uploader = videoInsert.getMediaHttpUploader();
       uploader.setDirectUploadEnabled(false);
       uploader.setProgressListener(new CustomProgressListener());
+
+      // 🔧 추가: 업로드 전 설정 로그
+      log.info("업로드 설정 상세:");
+      log.info("- 제목: {}", title);
+      log.info("- 공개 상태: {}", privacyStatus);
+      log.info("- 아동용 콘텐츠: {}", uploadConfig.getMadeForKids());
+      log.info("- 카테고리: {} ({})", uploadConfig.getCategoryId(), getCategoryName(uploadConfig.getCategoryId()));
+      log.info("- 언어: {}", uploadConfig.getDefaultLanguage());
+      log.info("- 촬영 위치: {}", uploadConfig.getRecordingLocation());
+      log.info("- 태그: {}", finalTags);
 
       // 업로드 실행
       log.info("YouTube 업로드 시작...");
@@ -134,7 +159,11 @@ public class YouTubeUploadService {
         log.info("- 영상 URL: https://www.youtube.com/watch?v={}", uploadedVideo.getId());
         log.info("- 제목: {}", uploadedVideo.getSnippet().getTitle());
         log.info("- 공개 상태: {}", uploadedVideo.getStatus().getPrivacyStatus());
+        log.info("- 아동용 콘텐츠 적용 확인: {}", uploadedVideo.getStatus().getMadeForKids());
         log.info("- 적용된 태그: {}", finalTags);
+
+        // 업로드된 영상의 실제 설정 확인
+        logUploadedVideoSettings(uploadedVideo);
 
         // 재생목록에 추가
         if (uploadConfig.getDefaultPlaylist() != null && !uploadConfig.getDefaultPlaylist().isEmpty()) {
@@ -167,6 +196,77 @@ public class YouTubeUploadService {
       log.error("YouTube 업로드 중 예상치 못한 오류: {}", e.getMessage(), e);
       return false;
     }
+  }
+
+  /**
+   * 업로드된 영상의 실제 설정을 로그로 출력
+   */
+  private void logUploadedVideoSettings(Video uploadedVideo) {
+    try {
+      log.info("=== 업로드된 영상 설정 확인 ===");
+
+      VideoStatus status = uploadedVideo.getStatus();
+      if (status != null) {
+        log.info("📊 상태 설정:");
+        log.info("  - 공개 상태: {}", status.getPrivacyStatus());
+        log.info("  - 아동용 콘텐츠: {}", status.getMadeForKids());
+        log.info("  - 임베드 가능: {}", status.getEmbeddable());
+        log.info("  - 통계 공개: {}", status.getPublicStatsViewable());
+        log.info("  - 라이선스: {}", status.getLicense());
+        log.info("  - 자체 신고 아동용: {}", status.getSelfDeclaredMadeForKids());
+      }
+
+      VideoSnippet snippet = uploadedVideo.getSnippet();
+      if (snippet != null) {
+        log.info("📝 메타데이터:");
+        log.info("  - 카테고리 ID: {}", snippet.getCategoryId());
+        log.info("  - 기본 언어: {}", snippet.getDefaultLanguage());
+        log.info("  - 태그 개수: {}", snippet.getTags() != null ? snippet.getTags().size() : 0);
+      }
+
+      VideoRecordingDetails recordingDetails = uploadedVideo.getRecordingDetails();
+      if (recordingDetails != null) {
+        log.info("📍 촬영 정보:");
+        log.info("  - 위치 설명: {}", recordingDetails.getLocationDescription());
+      }
+
+      VideoContentDetails contentDetails = uploadedVideo.getContentDetails();
+      if (contentDetails != null) {
+        log.info("🎬 콘텐츠 세부사항:");
+        log.info("  - 지속 시간: {}", contentDetails.getDuration());
+        if (contentDetails.getRegionRestriction() != null) {
+          log.info("  - 지역 제한: {}", contentDetails.getRegionRestriction().getBlocked());
+        }
+      }
+
+      log.info("===========================");
+
+    } catch (Exception e) {
+      log.warn("업로드된 영상 설정 확인 중 오류: {}", e.getMessage());
+    }
+  }
+
+  /**
+   * 카테고리 ID를 이름으로 변환
+   */
+  private String getCategoryName(String categoryId) {
+    return switch (categoryId) {
+      case "1" -> "Film & Animation";
+      case "2" -> "Autos & Vehicles";
+      case "10" -> "Music";
+      case "15" -> "Pets & Animals";
+      case "17" -> "Sports";
+      case "19" -> "Travel & Events";
+      case "20" -> "Gaming";
+      case "22" -> "People & Blogs";
+      case "23" -> "Comedy";
+      case "24" -> "Entertainment";
+      case "25" -> "News & Politics";
+      case "26" -> "Howto & Style";
+      case "27" -> "Education";
+      case "28" -> "Science & Technology";
+      default -> "Unknown";
+    };
   }
 
   /**
